@@ -50,6 +50,8 @@ The practical rule is: Vortex's Skyrim SE staging folder must be on the same fil
 
 That is why using Skyrim's prefix matters. It gives Vortex a Windows-looking home while keeping the staging area close enough to Skyrim for hardlink deployment.
 
+If Vortex says deploy failed, it means the download/install state inside Vortex may be fine, but Vortex could not link the enabled files into Skyrim's `Data` folder. `proton-vortex-skyrim-se hardlink-test` checks the most common filesystem cause.
+
 ## What Happens During Install
 
 `install.sh` does this:
@@ -176,6 +178,8 @@ If Vortex downloaded mods but the game looks unchanged, Vortex still needs the n
 If Vortex shows two Skyrim entries, use `proton-vortex doctor` to print the expected Linux path and Proton `Z:\...` path hint. The Vortex-managed Skyrim entry should match that path.
 
 `proton-vortex-skyrim-se deployment` checks the Skyrim `Data` folder, voice archives, deployed plugin files, and Proton `plugins.txt`. `proton-vortex-skyrim-se audio-fix` is optional and installs `xact` into the Skyrim Proton prefix through `protontricks` or `winetricks` for the Proton voice-audio issue.
+
+`PROTON_VORTEX_PERFORMANCE=1 proton-vortex` adds Electron performance flags and quiets Wine debug output for heavier download sessions.
 
 ## Data Locations
 

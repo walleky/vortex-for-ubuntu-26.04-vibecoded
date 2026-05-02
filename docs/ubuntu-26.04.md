@@ -96,6 +96,14 @@ If Vortex is blank or very choppy, try disabling Electron GPU acceleration for V
 PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 ```
 
+If Vortex gets choppy while downloading a large collection:
+
+```bash
+PROTON_VORTEX_PERFORMANCE=1 proton-vortex
+```
+
+Also reduce Vortex parallel downloads to 1 or 2. Collection installs are heavy on disk writes, archive extraction, and network traffic.
+
 ## Doctor And Logs
 
 Run:
@@ -133,9 +141,14 @@ If Vortex downloaded mods but Skyrim did not change:
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se hardlink-test
 ```
 
 Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
+
+Deployment means Vortex links enabled mod files into Skyrim's real `Data` folder. If deployment fails, the game can launch normally but behave as if mods are missing.
+
+If Vortex Settings > Mods shows a custom staging folder, test that exact folder with `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
 
 If Vortex shows two Skyrim entries, the active one may point at the wrong discovered game path. Run:
 

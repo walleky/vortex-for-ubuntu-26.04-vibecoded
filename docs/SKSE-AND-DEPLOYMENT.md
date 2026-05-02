@@ -76,6 +76,40 @@ Downloading alone does not deploy a mod into Skyrim.
 
 Collections can also be incomplete if Nexus still needs manual download clicks, especially on free Nexus accounts.
 
+## What Deploy Means
+
+Vortex has three different states that sound similar:
+
+- **Downloaded** means the archive exists in Vortex's downloads.
+- **Installed/Enabled** means Vortex unpacked the mod into its managed staging area and marked it active.
+- **Deployed** means Vortex put the enabled files where Skyrim can actually load them.
+
+For Skyrim SE, deployment normally means Vortex creates hardlinks from its staging folder into Skyrim's real `Data` folder. A hardlink looks like a normal file in `Data`, but it points to the same file data Vortex manages.
+
+If deployment fails, Skyrim usually launches without those mod files. Your downloads are not necessarily gone. It normally means Vortex could not create, update, or remove the hardlinks.
+
+Common causes:
+
+- Vortex is managing the wrong duplicate Skyrim entry
+- Staging folder and Skyrim are on different filesystems
+- The game is running while Vortex tries to deploy
+- A file conflict needs your choice in Vortex
+- Folder permissions block changes in Skyrim's `Data` folder
+- Old manually copied files are in the way
+
+Run:
+
+```bash
+proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se hardlink-test
+```
+
+If Vortex Settings > Mods shows a custom staging folder, you can test that exact folder:
+
+```bash
+proton-vortex-skyrim-se hardlink-test "/path/to/your/Vortex/staging/folder"
+```
+
 ## Vortex Shows Two Skyrims
 
 This usually means Vortex discovered Skyrim twice through different Proton-visible paths. One entry may point at the real Steam Skyrim folder, while the other may be an old/manual/wrong discovery. If the enabled entry has no mods and the other entry has your mods, Vortex is managing the wrong game instance.
@@ -114,6 +148,7 @@ The staging folder and Skyrim folder must be on the same filesystem/partition. C
 
 ```bash
 proton-vortex preflight
+proton-vortex-skyrim-se hardlink-test
 ```
 
 Good signs:
@@ -164,6 +199,14 @@ If Vortex is choppy or blank:
 PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 ```
 
+If Vortex gets choppy while downloading a large collection:
+
+```bash
+PROTON_VORTEX_PERFORMANCE=1 proton-vortex
+```
+
+Then in Vortex, lower parallel downloads to 1 or 2. Heavy collection downloads are disk, network, and archive-extraction heavy, so the UI can stutter even when nothing is broken. Keeping downloads, staging, and Skyrim on a fast local SSD helps.
+
 ## Commands To Run
 
 ```bash
@@ -171,6 +214,7 @@ proton-vortex doctor
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se hardlink-test
 proton-vortex-skyrim-se launch-skse
 ```
 

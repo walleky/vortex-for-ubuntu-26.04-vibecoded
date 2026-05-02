@@ -89,6 +89,9 @@ if [[ -r "$CONFIG_FILE" ]]; then
   if [[ -n "${PROTON_VORTEX_SCALE:-}" ]]; then
     ok "Vortex Electron scale factor: $PROTON_VORTEX_SCALE"
   fi
+  if [[ -n "${PROTON_VORTEX_PERFORMANCE:-}" ]]; then
+    ok "Vortex performance mode: $PROTON_VORTEX_PERFORMANCE"
+  fi
   if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && -n "${COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then
     ok "Vortex and Skyrim SE share Proton prefix"
   else
@@ -132,8 +135,10 @@ printf "\nSKSE and deployment:\n"
 printf "  proton-vortex-skyrim-se install-skse\n"
 printf "  proton-vortex-skyrim-se launch-skse\n"
 printf "  proton-vortex-skyrim-se deployment\n"
+printf "  proton-vortex-skyrim-se hardlink-test\n"
 printf "  proton-vortex-skyrim-se audio-check\n"
 printf "  In Skyrim console, run: getskseversion\n"
 printf "  In Vortex: Mods enabled, Plugins enabled, then Deploy Mods\n"
 printf "  If only voices are silent: proton-vortex-skyrim-se audio-fix\n"
+printf "  If Vortex is choppy while downloading: PROTON_VORTEX_PERFORMANCE=1 proton-vortex\n"
 printf "  proton-vortex last-log\n"

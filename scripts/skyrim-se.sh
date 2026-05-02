@@ -41,6 +41,8 @@ load_config() {
   if [[ -z "${STEAM_ROOT:-}" || -z "${PROTON_DIR:-}" ]]; then
     die "Config is incomplete. Rerun install.sh."
   fi
+
+  PROTON_VORTEX_WINEDEBUG="${PROTON_VORTEX_WINEDEBUG:--all}"
 }
 
 steam_libraries() {
@@ -112,6 +114,38 @@ find_skyrim_compat_data() {
 
   library="$(find_skyrim_library_root "$game_dir")"
   printf '%s\n' "$library/steamapps/compatdata/$SKYRIM_APP_ID"
+}
+
+same_device() {
+  local left="$1"
+  local right="$2"
+  [[ -e "$left" && -e "$right" ]] || return 1
+  [[ "$(stat -c %d "$left" 2>/dev/null)" == "$(stat -c %d "$right" 2>/dev/null)" ]]
+}
+
+vortex_roaming_dir() {
+  local compat_data="$1"
+  local pfx="$compat_data/pfx"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+    "$pfx/drive_c/users/$USER/AppData/Roaming/Vortex"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$(dirname -- "$candidate")" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+}
+
+vortex_staging_dir() {
+  local compat_data="$1"
+  local game_id="${VORTEX_GAME_ID:-skyrimse}"
+  printf '%s/%s/mods\n' "$(vortex_roaming_dir "$compat_data")" "$game_id"
 }
 
 extractor_command() {
@@ -312,6 +346,7 @@ deployment_status() {
   say "  game dir:   $game_dir"
   say "  data dir:   $data_dir"
   say "  prefix:     $compat_data"
+  say "  staging:    $(vortex_staging_dir "$compat_data")"
 
   if [[ -d "$data_dir" ]]; then
     say "  Data folder: present"
@@ -348,6 +383,17 @@ deployment_status() {
     say "  note: Data has few plugin files. This can be normal for texture-only mods, but if you expected plugins, Vortex may not have deployed them."
   fi
 
+  if [[ -d "$(vortex_staging_dir "$compat_data")" ]]; then
+    if same_device "$data_dir" "$(vortex_staging_dir "$compat_data")"; then
+      say "  staging/Data filesystem: same"
+    else
+      say "  staging/Data filesystem: different"
+      say "  Fix: set Vortex staging to a folder on the same filesystem as Skyrim."
+    fi
+  else
+    say "  staging folder: not found yet"
+  fi
+
   say ""
   say "Vortex checklist:"
   say "  1. Use the Skyrim entry matching: Z:${game_dir//\//\\}"
@@ -355,6 +401,76 @@ deployment_status() {
   say "  3. Plugins tab: plugins Enabled"
   say "  4. Click Deploy Mods"
   say "  5. Launch: proton-vortex-skyrim-se launch-skse"
+  say "  6. If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test"
+}
+
+hardlink_test() {
+  local requested_staging="${1:-}"
+  local game_dir
+  local compat_data
+  local data_dir
+  local staging_dir
+  local source_file
+  local target_file
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  data_dir="$game_dir/Data"
+  if [[ -n "$requested_staging" ]]; then
+    staging_dir="$requested_staging"
+  else
+    staging_dir="$(vortex_staging_dir "$compat_data")"
+  fi
+
+  [[ -d "$data_dir" ]] || die "Skyrim Data folder missing: $data_dir"
+  mkdir -p "$staging_dir"
+
+  source_file="$(mktemp "$staging_dir/.proton-vortex-hardlink-source.XXXXXX")" || die "Could not create test file in staging folder: $staging_dir"
+  target_file="$data_dir/.proton-vortex-hardlink-test"
+  if [[ -e "$target_file" ]]; then
+    rm -f -- "$source_file"
+    die "Test target already exists, refusing to overwrite: $target_file"
+  fi
+
+  cleanup_hardlink_test() {
+    trap - RETURN
+    rm -f -- "${source_file:-}" "${target_file:-}"
+  }
+  trap cleanup_hardlink_test RETURN
+
+  printf 'proton-vortex hardlink test\n' >"$source_file"
+
+  say "Hardlink deployment test"
+  say "  staging: $staging_dir"
+  say "  data:    $data_dir"
+  if [[ -n "$requested_staging" ]]; then
+    say "  source:  custom staging folder"
+  else
+    say "  source:  expected Vortex skyrimse staging folder"
+  fi
+
+  if ! same_device "$staging_dir" "$data_dir"; then
+    say "  result:  fail"
+    say "  reason:  staging and Skyrim Data are on different filesystems"
+    say "  fix:     in Vortex Settings > Mods, set staging to a folder on the same filesystem as Skyrim"
+    return 1
+  fi
+
+  if ln "$source_file" "$target_file" 2>/dev/null; then
+    if [[ "$(stat -c %i "$source_file" 2>/dev/null)" == "$(stat -c %i "$target_file" 2>/dev/null)" ]]; then
+      say "  result:  ok"
+      say "  meaning: hardlink deployment should be possible here"
+      return 0
+    fi
+    say "  result:  fail"
+    say "  reason:  test link was created but did not share the same inode"
+    return 1
+  fi
+
+  say "  result:  fail"
+  say "  reason:  Linux could not create a hardlink into Skyrim Data"
+  say "  fixes:   close Skyrim/Vortex, check folder permissions, and keep staging on the same filesystem as Skyrim"
+  return 1
 }
 
 audio_fix() {
@@ -411,6 +527,7 @@ launch_skse() {
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
   STEAM_COMPAT_APP_ID="$SKYRIM_APP_ID" \
   SteamAppId="$SKYRIM_APP_ID" \
+  WINEDEBUG="$PROTON_VORTEX_WINEDEBUG" \
   "$PROTON_DIR/proton" waitforexitandrun "$game_dir/skse64_loader.exe"
 }
 
@@ -435,6 +552,7 @@ diagnose() {
     say ""
     say "To check deployment/audio:"
     say "  proton-vortex-skyrim-se deployment"
+    say "  proton-vortex-skyrim-se hardlink-test"
     say "  proton-vortex-skyrim-se audio-check"
   else
     say "  game dir:    not found"
@@ -448,6 +566,7 @@ Usage:
   proton-vortex-skyrim-se launch-skse
   proton-vortex-skyrim-se diagnose
   proton-vortex-skyrim-se deployment
+  proton-vortex-skyrim-se hardlink-test [staging-folder]
   proton-vortex-skyrim-se audio-check
   proton-vortex-skyrim-se audio-fix
 
@@ -472,6 +591,10 @@ main() {
       ;;
     deployment|deploy-check|audio-check)
       deployment_status
+      ;;
+    hardlink-test|deploy-test)
+      shift
+      hardlink_test "${1:-}"
       ;;
     audio-fix|fix-audio|fix-voices)
       audio_fix

@@ -26,6 +26,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Bootstraps the selected Proton prefix before Vortex install
 - Writes Vortex UI DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`
 - Stores `PROTON_VORTEX_SCALE`, which the launcher passes to Electron as a scale factor
+- Stores `PROTON_VORTEX_PERFORMANCE` and `PROTON_VORTEX_WINEDEBUG` for heavy-download and log-noise tuning
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
@@ -66,6 +67,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Installs SKSE64
 - Launches `skse64_loader.exe` through Proton
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
+- Provides an explicit `hardlink-test` command for deployment filesystem checks
 
 `scripts/diagnose.sh`
 
@@ -331,6 +333,7 @@ Mods downloaded but not active:
 - Click **Deploy Mods**
 - Launch with `proton-vortex-skyrim-se launch-skse`
 - Run `proton-vortex preflight` to check prefix and staging placement
+- Run `proton-vortex-skyrim-se hardlink-test` when Vortex reports deploy failure
 
 Two Skyrim entries in Vortex:
 
@@ -344,6 +347,8 @@ Tiny or choppy Vortex UI:
 - Try `PROTON_VORTEX_SCALE=1.25 proton-vortex` if 150% is too large
 - Persist with `PROTON_VORTEX_SCALE=1.5 bash install.sh`
 - Try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex` for blank/choppy Electron rendering
+- Try `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` for heavy download sessions
+- Suggest reducing Vortex parallel downloads to 1-2 for large collections
 
 Character voices missing:
 

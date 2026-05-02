@@ -51,7 +51,9 @@ prune_logs() {
 
 load_config() {
   local env_disable_gpu="${PROTON_VORTEX_DISABLE_GPU:-}"
+  local env_performance="${PROTON_VORTEX_PERFORMANCE:-}"
   local env_scale="${PROTON_VORTEX_SCALE:-}"
+  local env_winedebug="${PROTON_VORTEX_WINEDEBUG-}"
 
   if [[ ! -r "$CONFIG_FILE" ]]; then
     die "Config not found at $CONFIG_FILE. Run install.sh first."
@@ -66,7 +68,9 @@ load_config() {
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
   VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
   PROTON_VORTEX_DISABLE_GPU="${env_disable_gpu:-${PROTON_VORTEX_DISABLE_GPU:-0}}"
+  PROTON_VORTEX_PERFORMANCE="${env_performance:-${PROTON_VORTEX_PERFORMANCE:-0}}"
   PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.5}}"
+  PROTON_VORTEX_WINEDEBUG="${env_winedebug:-${PROTON_VORTEX_WINEDEBUG:--all}}"
   INSTALL_SOURCE_DIR="${INSTALL_SOURCE_DIR:-}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
@@ -117,6 +121,9 @@ run_vortex() {
   if [[ "$PROTON_VORTEX_DISABLE_GPU" == "1" ]]; then
     electron_flags+=(--disable-gpu --disable-gpu-compositing)
   fi
+  if [[ "$PROTON_VORTEX_PERFORMANCE" == "1" ]]; then
+    electron_flags+=(--disable-background-timer-throttling --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion)
+  fi
   if [[ -n "${PROTON_VORTEX_SCALE:-}" && "$PROTON_VORTEX_SCALE" != "0" ]]; then
     if [[ "$PROTON_VORTEX_SCALE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
       electron_flags+=(--high-dpi-support=1 --force-device-scale-factor="$PROTON_VORTEX_SCALE")
@@ -135,6 +142,7 @@ run_vortex() {
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
   STEAM_COMPAT_APP_ID="$PROTON_APP_ID" \
   SteamAppId="$PROTON_APP_ID" \
+  WINEDEBUG="$PROTON_VORTEX_WINEDEBUG" \
   "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "${electron_flags[@]}" "$@" >>"$log_file" 2>&1
   status=$?
   set -e
@@ -206,7 +214,9 @@ print_info() {
   fi
   say "  proton app id: ${PROTON_APP_ID:-0}"
   say "  disable gpu:   $PROTON_VORTEX_DISABLE_GPU"
+  say "  performance:   $PROTON_VORTEX_PERFORMANCE"
   say "  ui scale:      ${PROTON_VORTEX_SCALE:-1.5}"
+  say "  winedebug:     $PROTON_VORTEX_WINEDEBUG"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
   say "  logs:          $LOG_DIR"
@@ -362,6 +372,7 @@ doctor() {
   say "  - In Vortex, downloaded mods still need Installed, Enabled, Plugins enabled, then Deploy Mods."
   say "  - If Vortex shows two Skyrims, manage the one whose path matches the Skyrim Vortex path hint above."
   say "  - If character voices are gone, run: proton-vortex-skyrim-se audio-check"
+  say "  - If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test"
   say "  - Nexus Free accounts may still require manual collection download clicks."
   if ((linked == 1)); then
     say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"

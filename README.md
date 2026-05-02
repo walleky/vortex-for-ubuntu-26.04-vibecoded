@@ -179,7 +179,10 @@ bash uninstall.sh
 - If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
+- If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
+- If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
 - If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.
+- If Vortex gets choppy while downloading many mods, try `PROTON_VORTEX_PERFORMANCE=1 proton-vortex`, reduce Vortex parallel downloads to 1-2, and keep the download/staging folders on a fast local SSD.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
 - The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
 

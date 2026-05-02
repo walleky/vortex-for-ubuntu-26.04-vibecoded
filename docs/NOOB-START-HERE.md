@@ -188,7 +188,12 @@ Then run:
 
 ```bash
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se hardlink-test
 ```
+
+Deploy means Vortex is putting enabled mod files into Skyrim's real `Data` folder. If deploy fails, Skyrim will usually act like the mods are not installed yet.
+
+If Vortex Settings > Mods shows a different staging folder than the command prints, run the hardlink test again with that folder path in quotes.
 
 If Vortex shows two Skyrims, run:
 
@@ -197,6 +202,14 @@ proton-vortex doctor
 ```
 
 Use the Skyrim entry in Vortex whose game path matches the printed `Skyrim Vortex path hint`. Do not delete the entry with your downloaded mods until the correct Skyrim deploys successfully.
+
+If Vortex gets choppy while downloading a lot:
+
+```bash
+PROTON_VORTEX_PERFORMANCE=1 proton-vortex
+```
+
+Also lower Vortex's parallel downloads to 1 or 2 while installing a big collection.
 
 If character voices are missing but other sounds work:
 
