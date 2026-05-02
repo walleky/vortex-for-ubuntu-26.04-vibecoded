@@ -9,6 +9,7 @@ CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 APP_HOME="$DATA_HOME/$APP_ID"
 APP_CACHE="$CACHE_HOME/$APP_ID"
 APP_DESKTOP_DIR="$DATA_HOME/applications"
+APP_ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 LAUNCHER="$BIN_HOME/proton-vortex"
 SKYRIM_HELPER="$BIN_HOME/proton-vortex-skyrim-se"
 
@@ -19,9 +20,16 @@ rm -f "$APP_DESKTOP_DIR/proton-vortex.desktop"
 rm -f "$APP_DESKTOP_DIR/proton-vortex-nxm.desktop"
 rm -f "$APP_DESKTOP_DIR/proton-vortex-skyrim-se.desktop"
 rm -f "$APP_DESKTOP_DIR/proton-vortex-import.desktop"
+rm -f "$APP_ICON_DIR/proton-vortex.svg"
+rm -f "$APP_ICON_DIR/proton-vortex-skyrim-se.svg"
+rm -f "$APP_ICON_DIR/proton-vortex-import.svg"
 
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$APP_DESKTOP_DIR" >/dev/null 2>&1 || true
+fi
+
+if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
 fi
 
 printf 'Keep installed Vortex prefix and cache at:\n'

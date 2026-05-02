@@ -103,6 +103,7 @@ That creates support folders, refreshes the desktop database, and re-registers t
 Before starting a large collection:
 
 ```bash
+proton-vortex linked
 proton-vortex preflight
 ```
 
@@ -116,6 +117,32 @@ If this project was installed from a git clone:
 
 ```bash
 proton-vortex self-update
+```
+
+## Launching Skyrim
+
+For modded play, use:
+
+```bash
+proton-vortex-skyrim-se launch-skse
+```
+
+or the **Skyrim SE SKSE (Proton)** app icon.
+
+Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Proton settings, and unmodded launching.
+
+## App Icons
+
+The installer writes SVG icons into:
+
+```text
+~/.local/share/icons/hicolor/scalable/apps
+```
+
+Then it uses those icons in the Linux desktop entries. If your dock still shows a generic icon, log out/in or rerun:
+
+```bash
+bash install.sh
 ```
 
 ## SKSE64

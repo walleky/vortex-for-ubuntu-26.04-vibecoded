@@ -15,6 +15,7 @@ CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 APP_HOME="$DATA_HOME/$APP_ID"
 APP_CACHE="$CACHE_HOME/$APP_ID"
 APP_DESKTOP_DIR="$DATA_HOME/applications"
+APP_ICON_DIR="$DATA_HOME/icons/hicolor/scalable/apps"
 CONFIG_FILE="$APP_HOME/config.env"
 APP_COMPAT_DATA="$APP_HOME/compatdata"
 COMPAT_DATA="$APP_COMPAT_DATA"
@@ -370,6 +371,44 @@ install_launcher() {
   chmod +x "$INTAKE_HELPER"
 }
 
+install_icons() {
+  mkdir -p "$APP_ICON_DIR"
+
+  cat >"$APP_ICON_DIR/proton-vortex.svg" <<'EOF_ICON'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#1f2937"/>
+  <path d="M64 14 110 38v52L64 114 18 90V38z" fill="#2563eb"/>
+  <path d="M64 25 98 43v38L64 99 30 81V43z" fill="#0f172a"/>
+  <path d="M41 42h17l7 35 8-35h16L75 88H55z" fill="#f8fafc"/>
+  <path d="M30 81 64 99 98 81v9L64 108 30 90z" fill="#38bdf8"/>
+</svg>
+EOF_ICON
+
+  cat >"$APP_ICON_DIR/proton-vortex-skyrim-se.svg" <<'EOF_ICON'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#111827"/>
+  <path d="M64 12 100 31v66L64 116 28 97V31z" fill="#334155"/>
+  <path d="M64 24 88 38v46L64 102 40 84V38z" fill="#e5e7eb"/>
+  <path d="M64 34 75 59l27 3-20 18 6 27-24-14-24 14 6-27-20-18 27-3z" fill="#2563eb"/>
+  <path d="M64 42 72 61l20 2-15 13 5 20-18-11-18 11 5-20-15-13 20-2z" fill="#f8fafc"/>
+</svg>
+EOF_ICON
+
+  cat >"$APP_ICON_DIR/proton-vortex-import.svg" <<'EOF_ICON'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#172554"/>
+  <path d="M30 34h68v60H30z" rx="10" fill="#dbeafe"/>
+  <path d="M42 48h44v10H42zm0 18h44v10H42z" fill="#1d4ed8"/>
+  <path d="M64 18v45" stroke="#38bdf8" stroke-width="12" stroke-linecap="round"/>
+  <path d="m45 46 19 19 19-19" fill="none" stroke="#38bdf8" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+EOF_ICON
+
+  if have gtk-update-icon-cache; then
+    gtk-update-icon-cache -f -t "$DATA_HOME/icons/hicolor" >/dev/null 2>&1 || true
+  fi
+}
+
 desktop_quote() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -390,7 +429,8 @@ Comment=Run Nexus Mods Vortex through Steam Proton
 Categories=Game;Utility;
 Exec=$launcher_exec
 Terminal=false
-Icon=applications-games
+Icon=proton-vortex
+StartupWMClass=Vortex.exe
 StartupNotify=true
 EOF_DESKTOP
 
@@ -403,7 +443,7 @@ Categories=Game;Network;
 MimeType=x-scheme-handler/nxm;x-scheme-handler/nxm-protocol;
 Exec=$launcher_exec %u
 Terminal=false
-Icon=applications-internet
+Icon=proton-vortex
 NoDisplay=true
 StartupNotify=true
 EOF_DESKTOP
@@ -416,7 +456,8 @@ Comment=Launch Skyrim Special Edition through SKSE64 and Proton
 Categories=Game;
 Exec=$(desktop_quote "$SKYRIM_HELPER") launch-skse
 Terminal=false
-Icon=applications-games
+Icon=proton-vortex-skyrim-se
+StartupWMClass=skse64_loader.exe
 StartupNotify=true
 EOF_DESKTOP
 
@@ -429,7 +470,7 @@ Categories=Game;Utility;
 MimeType=application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/gzip;application/x-tar;
 Exec=$launcher_exec import %u
 Terminal=false
-Icon=package-x-generic
+Icon=proton-vortex-import
 NoDisplay=false
 StartupNotify=true
 EOF_DESKTOP
@@ -606,6 +647,7 @@ main() {
 
   write_config "$STEAM_ROOT" "$PROTON_DIR"
   install_launcher
+  install_icons
   ensure_proton_prefix "$PROTON_DIR"
   configure_prefix_ui "$PROTON_DIR"
   install_vortex "$PROTON_DIR"

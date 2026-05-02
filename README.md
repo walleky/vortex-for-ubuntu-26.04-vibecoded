@@ -29,6 +29,7 @@ If you are an AI assistant or maintainer:
 - Automatic SKSE64 install/update helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
+- Linux desktop/dock icons for Vortex, Skyrim SKSE, and archive import
 - A registered `nxm://` handler for Nexus Mods browser links
 - Automatic Vortex NXM download/install handoff
 - Local archive and direct external URL import for non-Nexus mods
@@ -142,6 +143,7 @@ proton-vortex 'nxm://example'
 proton-vortex import ~/Downloads/mod.7z
 proton-vortex doctor
 proton-vortex doctor --fix
+proton-vortex linked
 proton-vortex preflight
 proton-vortex last-log
 proton-vortex self-update
@@ -156,6 +158,8 @@ bash uninstall.sh
 - This is a Proton wrapper, not a rewritten native Linux Vortex build.
 - Vortex itself still runs as the Windows app inside Proton.
 - SKSE64 is installed directly into the Skyrim SE folder because that is the least fussy path: `skse64_loader.exe`, the SKSE DLLs, and the `Data` folder contents are copied where Skyrim expects them.
+- Best launch path for modded play is `proton-vortex-skyrim-se launch-skse` or the **Skyrim SE SKSE (Proton)** app icon. Use Steam for first-run setup/unmodded launching, and Vortex for managing/deploying mods.
+- Updates from this repo do not delete Vortex mods, collections, or downloaded archives. They replace wrapper scripts, desktop files, and icons while reusing the same Proton prefix and app data.
 - Non-Nexus archives often do not include Nexus metadata, so Vortex may not know the mod page/title automatically. The archive still installs through Vortex's normal installer pipeline.
 - Game mod deployment can still depend on the game and filesystem layout. Steam Proton games under normal Steam library folders are the target path here.
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.

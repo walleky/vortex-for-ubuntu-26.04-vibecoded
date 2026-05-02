@@ -13,6 +13,8 @@ INTAKE_HELPER="$APP_HOME/mod-intake.py"
 NXM_DESKTOP="$DATA_HOME/applications/proton-vortex-nxm.desktop"
 SKYRIM_DESKTOP="$DATA_HOME/applications/proton-vortex-skyrim-se.desktop"
 IMPORT_DESKTOP="$DATA_HOME/applications/proton-vortex-import.desktop"
+VORTEX_ICON="$DATA_HOME/icons/hicolor/scalable/apps/proton-vortex.svg"
+SKYRIM_ICON="$DATA_HOME/icons/hicolor/scalable/apps/proton-vortex-skyrim-se.svg"
 
 ok() {
   printf '[ok] %s\n' "$*"
@@ -57,6 +59,8 @@ check_file "$INTAKE_HELPER" "mod intake helper"
 check_file "$NXM_DESKTOP" "NXM desktop file"
 check_file "$SKYRIM_DESKTOP" "Skyrim SE desktop file"
 check_file "$IMPORT_DESKTOP" "archive import desktop file"
+check_file "$VORTEX_ICON" "Vortex app icon"
+check_file "$SKYRIM_ICON" "Skyrim SE app icon"
 
 if [[ -r "$CONFIG_FILE" ]]; then
   # shellcheck source=/dev/null
@@ -81,6 +85,11 @@ if [[ -r "$CONFIG_FILE" ]]; then
   fi
   if [[ -n "${PROTON_VORTEX_DPI:-}" ]]; then
     ok "Vortex UI DPI setting: $PROTON_VORTEX_DPI"
+  fi
+  if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && -n "${COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then
+    ok "Vortex and Skyrim SE share Proton prefix"
+  else
+    warn "Vortex and Skyrim SE prefix sharing was not confirmed. Run: proton-vortex linked"
   fi
 fi
 
@@ -112,5 +121,6 @@ printf "  From a terminal, quote the URL: proton-vortex 'nxm://...'\n"
 printf "  For non-Nexus archives: proton-vortex import /path/to/mod.zip\n"
 printf "\nRepair/preflight:\n"
 printf "  proton-vortex doctor --fix\n"
+printf "  proton-vortex linked\n"
 printf "  proton-vortex preflight\n"
 printf "  proton-vortex last-log\n"

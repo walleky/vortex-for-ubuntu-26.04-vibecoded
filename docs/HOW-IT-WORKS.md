@@ -182,6 +182,7 @@ Doctor/preflight:
 ```bash
 proton-vortex doctor
 proton-vortex doctor --fix
+proton-vortex linked
 proton-vortex preflight
 proton-vortex last-log
 ```
@@ -211,6 +212,14 @@ Desktop files:
 ~/.local/share/applications/proton-vortex-nxm.desktop
 ~/.local/share/applications/proton-vortex-skyrim-se.desktop
 ~/.local/share/applications/proton-vortex-import.desktop
+```
+
+Icons:
+
+```text
+~/.local/share/icons/hicolor/scalable/apps/proton-vortex.svg
+~/.local/share/icons/hicolor/scalable/apps/proton-vortex-skyrim-se.svg
+~/.local/share/icons/hicolor/scalable/apps/proton-vortex-import.svg
 ```
 
 Launchers:

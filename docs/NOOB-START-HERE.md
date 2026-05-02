@@ -51,6 +51,7 @@ To check and repair the setup:
 
 ```bash
 proton-vortex doctor --fix
+proton-vortex linked
 ```
 
 ## Install
@@ -155,6 +156,8 @@ Or use the app menu launcher:
 Skyrim SE SKSE (Proton)
 ```
 
+That is the best way to play modded Skyrim. Use Vortex to install/deploy mods. Use Steam mostly for first launch setup or plain unmodded Skyrim.
+
 For current Steam Skyrim Special Edition, use the default SKSE install. If you intentionally downgraded Skyrim to `1.5.97`, run:
 
 ```bash
@@ -173,6 +176,7 @@ Common fixes:
 
 - If Nexus links do nothing, set **Vortex NXM Handler** as the default in your browser
 - If you are unsure Skyrim was detected, run `bash scripts/diagnose.sh` and look for `Skyrim SE detected`
+- If you are unsure Vortex and Skyrim are linked, run `proton-vortex linked`
 - If you are unsure a collection is safe to start, run `proton-vortex preflight`
 - If Vortex fails or closes, run `proton-vortex last-log`
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first

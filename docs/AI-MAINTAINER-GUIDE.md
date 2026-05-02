@@ -28,6 +28,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
+- Writes hicolor SVG app icons and refreshes icon cache when available
 - Registers `nxm://`
 - Tries SKSE64 setup
 
@@ -41,7 +42,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Delegates NXM/URL/archive intake to `mod-intake.py`
 - Passes local archives to Vortex as Proton-readable `file:///Z:/...` URLs
 - Captures Vortex/Proton stdout and stderr to `~/.local/share/proton-vortex/logs`
-- Provides `doctor`, `doctor --fix`, `preflight`, `last-log`, and `self-update`
+- Provides `doctor`, `doctor --fix`, `linked`, `preflight`, `last-log`, and `self-update`
 - Runs Vortex through Proton
 
 `scripts/mod-intake.py`
@@ -130,6 +131,7 @@ Keep this contract stable unless every caller is updated.
 - Create support folders
 - Re-register `nxm://`
 - Refresh the desktop database
+- Confirm shared Skyrim/Vortex prefix when Skyrim is detected
 
 Do not make it rewrite Vortex's internal state with `--set` unless the state path is verified against current Vortex.
 
@@ -257,6 +259,7 @@ On a real Ubuntu machine with Steam installed, also run:
 bash install.sh
 bash scripts/diagnose.sh
 proton-vortex doctor
+proton-vortex linked
 proton-vortex preflight
 proton-vortex api-key status
 proton-vortex-skyrim-se diagnose

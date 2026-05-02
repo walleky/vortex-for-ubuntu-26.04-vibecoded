@@ -230,6 +230,7 @@ doctor() {
   local roaming=""
   local staging=""
   local free_space=""
+  local linked=0
 
   if [[ "$fix" == "--fix" ]]; then
     ensure_support_dirs
@@ -258,7 +259,20 @@ doctor() {
     status=1
   fi
 
-  [[ "${VORTEX_GAME_ID:-}" == "skyrimse" ]] && ok "Vortex game id: skyrimse" || warn "Vortex game id is '${VORTEX_GAME_ID:-not set}', expected skyrimse."
+  if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then
+    ok "link: Vortex and Skyrim SE share the same Proton prefix"
+    linked=1
+  elif [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" ]]; then
+    warn "link: Vortex prefix differs from Skyrim SE prefix. Vortex may not see the same Windows environment."
+    warn "      Vortex: $COMPAT_DATA"
+    warn "      Skyrim: $SKYRIM_SE_COMPAT_DATA"
+    status=1
+  else
+    warn "link: Skyrim SE compatdata is not recorded."
+    status=1
+  fi
+
+  [[ "${VORTEX_GAME_ID:-}" == "skyrimse" ]] && ok "Vortex game id: skyrimse" || { warn "Vortex game id is '${VORTEX_GAME_ID:-not set}', expected skyrimse."; status=1; }
 
   if command -v xdg-mime >/dev/null 2>&1; then
     handler="$(xdg-mime query default x-scheme-handler/nxm || true)"
@@ -296,6 +310,9 @@ doctor() {
   say "  - Vortex should manage Skyrim Special Edition."
   say "  - Use Hardlink Deployment when Vortex asks."
   say "  - Nexus Free accounts may still require manual collection download clicks."
+  if ((linked == 1)); then
+    say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"
+  fi
 
   return "$status"
 }
@@ -335,6 +352,7 @@ Usage:
   proton-vortex import /path/to/mod.zip
   proton-vortex doctor
   proton-vortex doctor --fix
+  proton-vortex linked
   proton-vortex preflight
   proton-vortex last-log
   proton-vortex self-update
@@ -361,6 +379,10 @@ EOF_HELP
       return $?
       ;;
     preflight)
+      doctor
+      return $?
+      ;;
+    linked|link-status)
       doctor
       return $?
       ;;
