@@ -87,6 +87,7 @@ It also creates helper items inside Proton's fake Windows desktop:
 
 ```text
 C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.cmd
 C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
 C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
 C:\users\steamuser\Desktop\Vortex Downloads
@@ -234,7 +235,7 @@ or the **Skyrim SE SKSE (Proton)** app icon.
 
 Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Proton settings, and unmodded launching.
 
-Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper does not force-edit Vortex's private state because that can risk profiles and mod lists. Rerunning `bash install.sh` adds Linux dock action **Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-staging` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat` for Vortex's tool picker.
+Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper now uses Vortex's own CLI state setter to repair the Skyrim SE game path, SKSE working directory, and primary tool. Rerunning `bash install.sh` adds Linux dock action **Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-skse-launcher` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.cmd` plus a game-folder helper.
 
 If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run:
 
@@ -242,7 +243,7 @@ If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run:
 proton-vortex-skyrim-se fix-skse-launcher
 ```
 
-Then set the Vortex Dashboard SKSE tool to the printed `Launch Skyrim SE SKSE.bat` target and printed `Start in` folder. The generated batch file inside the Skyrim folder avoids the wrong-working-directory problem.
+Close Vortex before running it. The command patches Vortex to use a Proton-safe `cmd.exe /c` SKSE tool as primary. The generated command file uses `pushd` into the real Skyrim folder and runs `skse64_loader.exe` directly, avoiding the wrong-working-directory problem.
 
 ## App Icons
 

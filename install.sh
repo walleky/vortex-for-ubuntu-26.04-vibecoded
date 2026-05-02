@@ -712,18 +712,28 @@ $staging_win
 Downloads Folder:
 $downloads_win
 
+Vortex SKSE tool, if automatic repair cannot patch Vortex:
+Target:
+C:\windows\system32\cmd.exe
+
+Command Line:
+/d /c "$game_win\Launch Skyrim SE SKSE.cmd"
+
+Start In:
+$game_win
+
 Avoid choosing bare Z:\\. Z: is the whole Linux filesystem and many places are not writable.
 EOF_PICKER
 }
 
-write_skse_launcher_bat() {
+write_skse_launcher_cmd() {
   local file="$1"
   local game_win="$2"
 
   cat >"$file" <<EOF_BAT
 @echo off
 set "GAME_DIR=$game_win"
-cd /d "%GAME_DIR%"
+pushd "%GAME_DIR%"
 if not exist "SkyrimSE.exe" (
   echo SkyrimSE.exe was not found in %CD%
   echo Vortex is launching SKSE from the wrong game folder.
@@ -736,16 +746,19 @@ if not exist "skse64_loader.exe" (
   pause
   exit /b 1
 )
-start "" "%GAME_DIR%\\skse64_loader.exe"
+"%GAME_DIR%\\skse64_loader.exe"
+set "SKSE_EXIT=%ERRORLEVEL%"
+popd
+exit /b %SKSE_EXIT%
 EOF_BAT
 }
 
-write_skse_game_launcher_bat() {
+write_skse_game_launcher_cmd() {
   local file="$1"
 
   cat >"$file" <<'EOF_BAT'
 @echo off
-cd /d "%~dp0"
+pushd "%~dp0"
 if not exist "SkyrimSE.exe" (
   echo SkyrimSE.exe was not found in %CD%
   echo This batch file must live in the Skyrim Special Edition game folder.
@@ -758,8 +771,19 @@ if not exist "skse64_loader.exe" (
   pause
   exit /b 1
 )
-start "" "%~dp0skse64_loader.exe"
+".\skse64_loader.exe"
+set "SKSE_EXIT=%ERRORLEVEL%"
+popd
+exit /b %SKSE_EXIT%
 EOF_BAT
+}
+
+write_skse_launcher_bat() {
+  write_skse_launcher_cmd "$@"
+}
+
+write_skse_game_launcher_bat() {
+  write_skse_game_launcher_cmd "$@"
 }
 
 create_vortex_picker_helpers() {
@@ -787,6 +811,8 @@ create_vortex_picker_helpers() {
 
     write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_skse_launcher_cmd "$desktop/Launch Skyrim SE SKSE.cmd" "$game_win"
+    write_skse_game_launcher_cmd "$game_dir/Launch Skyrim SE SKSE.cmd"
     write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
     write_skse_game_launcher_bat "$game_dir/Launch Skyrim SE SKSE.bat"
   done < <(prefix_user_dirs "$pfx")
@@ -848,7 +874,7 @@ configure_skyrim_vortex_storage() {
   say "  Downloads:   $VORTEX_DOWNLOADS_WIN_PATH"
   say "  Game folder: $VORTEX_SKYRIMSE_GAME_WIN_PATH"
   say "  Picker help: C:\\users\\steamuser\\Desktop\\PROTON_VORTEX_PATHS.txt"
-  say "  SKSE helper: C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
+  say "  SKSE helper: C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.cmd"
 }
 
 setup_skyrim_se() {
@@ -861,12 +887,20 @@ setup_skyrim_se() {
     say "To update or repair SKSE64 later, run: proton-vortex-skyrim-se install-skse"
     say "That command now detects SkyrimSE.exe runtime; 1.5.97 uses SKSE 2.0.20."
     say "To force SKSE64 during install, run: SKSE_AUTO_UPDATE=1 bash install.sh"
+    say "Repairing Vortex's SKSE launcher path now..."
+    if ! "$SKYRIM_HELPER" fix-skse-launcher; then
+      say "SKSE launcher repair did not complete. Close Vortex and run: proton-vortex-skyrim-se fix-skse-launcher"
+    fi
     return 0
   fi
 
   say "Setting up SKSE64 for Skyrim Special Edition..."
   if "$SKYRIM_HELPER" install-skse; then
     say "SKSE64 setup is complete."
+    say "Repairing Vortex's SKSE launcher path now..."
+    if ! "$SKYRIM_HELPER" fix-skse-launcher; then
+      say "SKSE launcher repair did not complete. Close Vortex and run: proton-vortex-skyrim-se fix-skse-launcher"
+    fi
   else
     say "SKSE64 automatic setup did not complete. You can retry with:"
     say "  proton-vortex-skyrim-se install-skse"

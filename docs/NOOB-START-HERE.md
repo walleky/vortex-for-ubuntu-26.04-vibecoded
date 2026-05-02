@@ -207,7 +207,7 @@ If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, Vortex is laun
 proton-vortex-skyrim-se fix-skse-launcher
 ```
 
-Then in Vortex Dashboard set the SKSE tool to the printed `Launch Skyrim SE SKSE.bat` target and printed `Start in` folder.
+Close Vortex before running it. The command now patches Vortex itself, sets the Proton-safe SKSE tool as primary, and creates `Launch Skyrim SE SKSE.cmd` helpers in the real Skyrim folder. If the patch says the Vortex database is locked, close Vortex completely and run the same command again.
 
 To force SKSE during a wrapper reinstall:
 
@@ -327,7 +327,7 @@ Common fixes:
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
-- If SKSE says it cannot find `SkyrimSE.exe`, run `proton-vortex-skyrim-se fix-skse-launcher`
+- If SKSE says it cannot find `SkyrimSE.exe`, close Vortex and run `proton-vortex-skyrim-se fix-skse-launcher`
 - If Vortex says the staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`
 - If Vortex says the destination folder must be empty, run `proton-vortex-skyrim-se empty-staging`
 - If Vortex says no uninstall key, run `proton-vortex repair-vortex`

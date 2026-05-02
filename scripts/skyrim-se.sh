@@ -421,18 +421,28 @@ $staging_win
 Downloads Folder:
 $downloads_win
 
+Vortex SKSE tool, if automatic repair cannot patch Vortex:
+Target:
+C:\windows\system32\cmd.exe
+
+Command Line:
+/d /c "$game_win\Launch Skyrim SE SKSE.cmd"
+
+Start In:
+$game_win
+
 Avoid choosing bare Z:\\. Z: is the whole Linux filesystem and many places are not writable.
 EOF_PICKER
 }
 
-write_skse_launcher_bat() {
+write_skse_launcher_cmd() {
   local file="$1"
   local game_win="$2"
 
   cat >"$file" <<EOF_BAT
 @echo off
 set "GAME_DIR=$game_win"
-cd /d "%GAME_DIR%"
+pushd "%GAME_DIR%"
 if not exist "SkyrimSE.exe" (
   echo SkyrimSE.exe was not found in %CD%
   echo Vortex is launching SKSE from the wrong game folder.
@@ -445,16 +455,19 @@ if not exist "skse64_loader.exe" (
   pause
   exit /b 1
 )
-start "" "%GAME_DIR%\\skse64_loader.exe"
+"%GAME_DIR%\\skse64_loader.exe"
+set "SKSE_EXIT=%ERRORLEVEL%"
+popd
+exit /b %SKSE_EXIT%
 EOF_BAT
 }
 
-write_skse_game_launcher_bat() {
+write_skse_game_launcher_cmd() {
   local file="$1"
 
   cat >"$file" <<'EOF_BAT'
 @echo off
-cd /d "%~dp0"
+pushd "%~dp0"
 if not exist "SkyrimSE.exe" (
   echo SkyrimSE.exe was not found in %CD%
   echo This batch file must live in the Skyrim Special Edition game folder.
@@ -467,8 +480,19 @@ if not exist "skse64_loader.exe" (
   pause
   exit /b 1
 )
-start "" "%~dp0skse64_loader.exe"
+".\skse64_loader.exe"
+set "SKSE_EXIT=%ERRORLEVEL%"
+popd
+exit /b %SKSE_EXIT%
 EOF_BAT
+}
+
+write_skse_launcher_bat() {
+  write_skse_launcher_cmd "$@"
+}
+
+write_skse_game_launcher_bat() {
+  write_skse_game_launcher_cmd "$@"
 }
 
 create_vortex_picker_helpers() {
@@ -496,6 +520,8 @@ create_vortex_picker_helpers() {
 
     write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_skse_launcher_cmd "$desktop/Launch Skyrim SE SKSE.cmd" "$game_win"
+    write_skse_game_launcher_cmd "$game_dir/Launch Skyrim SE SKSE.cmd"
     write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
     write_skse_game_launcher_bat "$game_dir/Launch Skyrim SE SKSE.bat"
   done < <(prefix_user_dirs "$pfx")
@@ -531,6 +557,134 @@ vortex_staging_dir() {
   local compat_data="$1"
   local game_id="${VORTEX_GAME_ID:-skyrimse}"
   printf '%s/%s/mods\n' "$(vortex_roaming_dir "$compat_data")" "$game_id"
+}
+
+find_vortex_exe() {
+  local compat_data="${1:-$COMPAT_DATA}"
+  local pfx="$compat_data/pfx"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser/AppData/Local/Programs/Vortex/Vortex.exe"
+    "$pfx/drive_c/users/$USER/AppData/Local/Programs/Vortex/Vortex.exe"
+    "$pfx/drive_c/Program Files/Vortex/Vortex.exe"
+    "$pfx/drive_c/Program Files (x86)/Vortex/Vortex.exe"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  if [[ -d "$pfx/drive_c" ]]; then
+    find "$pfx/drive_c" -iname Vortex.exe -type f -print -quit 2>/dev/null
+  fi
+}
+
+json_string() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+print(json.dumps(sys.argv[1]))
+PY
+}
+
+json_array() {
+  python3 - "$@" <<'PY'
+import json
+import sys
+
+print(json.dumps(sys.argv[1:]))
+PY
+}
+
+vortex_cli_set_many() {
+  local vortex_exe="$1"
+  shift
+  local output
+  local status
+
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+
+  set +e
+  output="$(
+    STEAM_COMPAT_DATA_PATH="$COMPAT_DATA" \
+    STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
+    STEAM_COMPAT_APP_ID="${PROTON_APP_ID:-$SKYRIM_APP_ID}" \
+    SteamAppId="${PROTON_APP_ID:-$SKYRIM_APP_ID}" \
+    WINEDEBUG="$PROTON_VORTEX_WINEDEBUG" \
+    "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "$@" 2>&1
+  )"
+  status=$?
+  set -e
+
+  if ((status != 0)) || grep -Eiq 'database is locked|another instance|failed|error|locked' <<<"$output"; then
+    say "Vortex state repair did not complete."
+    if [[ -n "$output" ]]; then
+      say "$output"
+    fi
+    say "Close Vortex completely, then rerun: proton-vortex-skyrim-se fix-skse-launcher"
+    return 1
+  fi
+
+  return 0
+}
+
+repair_vortex_skse_state() {
+  local game_win="$1"
+  local vortex_exe
+  local skse_exe_win
+  local cmd_exe_win="C:\\windows\\system32\\cmd.exe"
+  local launch_cmd_win="$game_win\\Launch Skyrim SE SKSE.cmd"
+  local set_args=()
+
+  vortex_exe="$(find_vortex_exe "$COMPAT_DATA" || true)"
+  if [[ -z "$vortex_exe" ]]; then
+    say "Vortex.exe was not found, so I could not patch Vortex's SKSE tool automatically."
+    return 1
+  fi
+
+  skse_exe_win="$game_win\\skse64_loader.exe"
+  say "Patching Vortex's Skyrim SE path and SKSE launcher state..."
+  say "  Vortex.exe: $vortex_exe"
+  say "  Game path:  $game_win"
+
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.path=$(json_string "$game_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.pathSetManually=true")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.store=$(json_string "steam")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.executable=$(json_string "SkyrimSE.exe")")
+
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.id=$(json_string "skse64")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.name=$(json_string "Skyrim Script Extender 64")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.shortName=$(json_string "SKSE64")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.path=$(json_string "$skse_exe_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.workingDirectory=$(json_string "$game_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.parameters=[]")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.hidden=false")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.custom=false")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.relative=true")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.exclusive=true")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.defaultPrimary=true")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.skse64.detach=true")
+
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.id=$(json_string "proton-vortex-skse")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.name=$(json_string "Skyrim SE SKSE Proton Fixed")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.shortName=$(json_string "SKSE")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.path=$(json_string "$cmd_exe_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.workingDirectory=$(json_string "$game_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.parameters=$(json_array "/d" "/c" "$launch_cmd_win")")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.hidden=false")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.custom=true")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.shell=false")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.detach=false")
+  set_args+=("--set" "settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.defaultPrimary=true")
+  set_args+=("--set" "settings.interface.primaryTool.skyrimse=$(json_string "proton-vortex-skse")")
+
+  vortex_cli_set_many "$vortex_exe" "${set_args[@]}"
 }
 
 extractor_command() {
@@ -1011,7 +1165,7 @@ fix_staging() {
   say "  Linux downloads: $downloads_dir"
   say "  Proton drive:    ${PROTON_VORTEX_DRIVE_LETTER^^}: maps to $library"
   say "  Picker help:     C:\\users\\steamuser\\Desktop\\PROTON_VORTEX_PATHS.txt"
-  say "  SKSE helper:     C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
+  say "  SKSE helper:     C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.cmd"
   say ""
   say "Use these inside Vortex if it asks for folders:"
   say "  Game folder:        $game_win"
@@ -1149,15 +1303,18 @@ fix_skse_launcher() {
   staging_win="$(windows_path_hint "$library" "$staging_dir")"
   downloads_win="$(windows_path_hint "$library" "$downloads_dir")"
   create_vortex_picker_helpers "$pfx" "$base_dir" "$staging_dir" "$downloads_dir" "$game_dir" "$game_win" "$staging_win" "$downloads_win"
+  repair_vortex_skse_state "$game_win" || return 1
 
   say "Repaired SKSE launch helpers"
   say "  Game folder:      $game_win"
-  say "  Vortex tool file: $game_win\\Launch Skyrim SE SKSE.bat"
-  say "  Desktop helper:   C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
+  say "  Vortex tool file: $game_win\\Launch Skyrim SE SKSE.cmd"
+  say "  Desktop helper:   C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.cmd"
   say ""
-  say "In Vortex Dashboard, set the SKSE tool to:"
-  say "  Target:   $game_win\\Launch Skyrim SE SKSE.bat"
-  say "  Start in: $game_win"
+  say "Vortex was patched to use the Proton-safe SKSE launcher as the primary tool."
+  say "If you still edit it manually in Vortex, use:"
+  say "  Target:       C:\\windows\\system32\\cmd.exe"
+  say "  Command Line: /d /c \"$game_win\\Launch Skyrim SE SKSE.cmd\""
+  say "  Start in:     $game_win"
   say ""
   say "Guaranteed Linux launch path:"
   say "  proton-vortex-skyrim-se launch-skse"
@@ -1240,7 +1397,9 @@ diagnose() {
   local compat_data
   local picker_help
   local skse_bat
+  local skse_cmd
   local game_skse_bat
+  local game_skse_cmd
 
   say "Skyrim SE helper"
   say "  steam root:  ${STEAM_ROOT:-not set}"
@@ -1253,18 +1412,24 @@ diagnose() {
     skse_status "$game_dir"
     picker_help="$compat_data/pfx/drive_c/users/steamuser/Desktop/PROTON_VORTEX_PATHS.txt"
     skse_bat="$compat_data/pfx/drive_c/users/steamuser/Desktop/Launch Skyrim SE SKSE.bat"
+    skse_cmd="$compat_data/pfx/drive_c/users/steamuser/Desktop/Launch Skyrim SE SKSE.cmd"
     if [[ -f "$picker_help" ]]; then
       say "  picker help: $picker_help"
     else
       say "  picker help: missing; run proton-vortex-skyrim-se fix-staging"
     fi
-    if [[ -f "$skse_bat" ]]; then
+    if [[ -f "$skse_cmd" ]]; then
+      say "  Vortex SKSE helper: $skse_cmd"
+    elif [[ -f "$skse_bat" ]]; then
       say "  Vortex SKSE helper: $skse_bat"
     else
       say "  Vortex SKSE helper: missing; run proton-vortex-skyrim-se fix-staging"
     fi
     game_skse_bat="$game_dir/Launch Skyrim SE SKSE.bat"
-    if [[ -f "$game_skse_bat" ]]; then
+    game_skse_cmd="$game_dir/Launch Skyrim SE SKSE.cmd"
+    if [[ -f "$game_skse_cmd" ]]; then
+      say "  Game-folder SKSE helper: $game_skse_cmd"
+    elif [[ -f "$game_skse_bat" ]]; then
       say "  Game-folder SKSE helper: $game_skse_bat"
     else
       say "  Game-folder SKSE helper: missing; run proton-vortex-skyrim-se fix-skse-launcher"
@@ -1293,6 +1458,7 @@ Usage:
   proton-vortex-skyrim-se install-skse
   proton-vortex-skyrim-se launch-skse
   proton-vortex-skyrim-se fix-skse-launcher
+  proton-vortex-skyrim-se force-vortex-skse
   proton-vortex-skyrim-se diagnose
   proton-vortex-skyrim-se deployment
   proton-vortex-skyrim-se fix-staging
@@ -1319,7 +1485,7 @@ main() {
     launch-skse|launch|play)
       launch_skse
       ;;
-    fix-skse-launcher|skse-launcher|repair-skse-launcher|vortex-skse)
+    fix-skse-launcher|force-vortex-skse|skse-launcher|repair-skse-launcher|vortex-skse)
       fix_skse_launcher
       ;;
     diagnose|status)

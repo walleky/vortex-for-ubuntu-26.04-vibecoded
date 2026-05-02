@@ -70,7 +70,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Finds Steam Skyrim SE app `489830`
 - Installs SKSE64
 - Launches `skse64_loader.exe` through Proton
-- Provides `fix-skse-launcher` to create Vortex-safe SKSE batch launchers when Vortex starts SKSE from the wrong working directory
+- Provides `fix-skse-launcher` to create Vortex-safe SKSE command launchers and patch Vortex's Skyrim SE/SKSE tool state when Vortex starts SKSE from the wrong working directory
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 - Provides an explicit `hardlink-test` command for deployment filesystem checks
 - Provides `fix-staging` to create writable Vortex folders, Proton drive mapping, and symlinks for empty default Vortex folders
@@ -153,7 +153,7 @@ Keep this contract stable unless every caller is updated.
 - Refresh the desktop database
 - Confirm shared Skyrim/Vortex prefix when Skyrim is detected
 
-Do not make it rewrite Vortex's internal state with `--set` unless the state path is verified against current Vortex.
+Do not make general-purpose doctor commands rewrite Vortex's internal state with `--set`. The only current exception is the explicit `proton-vortex-skyrim-se fix-skse-launcher` repair path, whose state keys were checked against Vortex's current CLI/state code and the Skyrim SE extension.
 
 `proton-vortex repair-vortex` may rerun:
 
@@ -173,6 +173,7 @@ Use it for Vortex's **No Vortex uninstall key** warning. It must not remove AppD
 <Skyrim prefix>/pfx/drive_c/users/*/Desktop/Vortex Staging Skyrim SE
 <Skyrim prefix>/pfx/drive_c/users/*/Desktop/Vortex Downloads
 <Skyrim prefix>/pfx/drive_c/users/*/Desktop/Skyrim Special Edition
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.cmd
 <Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.bat
 ```
 
@@ -186,16 +187,28 @@ It may replace empty default Vortex staging/download folders with symlinks to th
 
 It must not delete existing staging folders. It may update `VORTEX_SKYRIMSE_STAGING_DIR` and `VORTEX_SKYRIMSE_STAGING_WIN_PATH` in `config.env` to keep future diagnostics pointed at the fresh folder.
 
-Do not auto-edit undocumented Vortex profile/tool/game state to force the Dashboard Play button to SKSE. Use the Linux SKSE launcher, dock action, helper command, or generated `.bat` file instead unless Vortex documents a stable state API.
+Do not auto-edit broad Vortex profile/mod/collection state. `fix-skse-launcher` may use Vortex's own CLI `--set` path to repair only these Skyrim SE launcher keys:
+
+```text
+settings.gameMode.discovered.skyrimse.path
+settings.gameMode.discovered.skyrimse.executable
+settings.gameMode.discovered.skyrimse.tools.skse64.*
+settings.gameMode.discovered.skyrimse.tools.proton-vortex-skse.*
+settings.interface.primaryTool.skyrimse
+```
+
+The CLI value must be valid JSON because Vortex parses persisted values during hydration. For string values, pass JSON strings such as `"S:\\steamapps\\common\\Skyrim Special Edition"`, not bare strings.
 
 `proton-vortex-skyrim-se fix-skse-launcher` may create or overwrite wrapper-owned files:
 
 ```text
+<Skyrim folder>/Launch Skyrim SE SKSE.cmd
 <Skyrim folder>/Launch Skyrim SE SKSE.bat
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.cmd
 <Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.bat
 ```
 
-These batch files must `cd` into the Skyrim folder before running `skse64_loader.exe`; otherwise SKSE can report that it cannot find `SkyrimSE.exe`.
+These command files must `pushd` into the Skyrim folder before running `skse64_loader.exe`; otherwise SKSE can report that it cannot find `SkyrimSE.exe`. Do not use `start` here because Wine/Proton can lose the intended working directory.
 
 ## NXM Behavior
 
