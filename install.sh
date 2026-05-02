@@ -24,7 +24,11 @@ PROTON_VORTEX_DPI="${PROTON_VORTEX_DPI:-120}"
 PROTON_VORTEX_SCALE="${PROTON_VORTEX_SCALE:-1.5}"
 PROTON_VORTEX_PERFORMANCE="${PROTON_VORTEX_PERFORMANCE:-0}"
 PROTON_VORTEX_WINEDEBUG="${PROTON_VORTEX_WINEDEBUG:--all}"
+PROTON_VORTEX_DRIVE_LETTER="${PROTON_VORTEX_DRIVE_LETTER:-s}"
 VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
+VORTEX_SKYRIMSE_BASE_DIR="${VORTEX_SKYRIMSE_BASE_DIR:-}"
+VORTEX_SKYRIMSE_STAGING_DIR="${VORTEX_SKYRIMSE_STAGING_DIR:-}"
+VORTEX_DOWNLOADS_DIR="${VORTEX_DOWNLOADS_DIR:-}"
 LAUNCHER="$BIN_HOME/proton-vortex"
 SKYRIM_HELPER="$BIN_HOME/proton-vortex-skyrim-se"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
@@ -48,6 +52,66 @@ have() {
 
 canonical_dir() {
   (cd "$1" && pwd -P)
+}
+
+normalize_drive_letter() {
+  local letter="$1"
+  letter="$(printf '%s' "$letter" | tr '[:upper:]' '[:lower:]')"
+  case "$letter" in
+    [a-z])
+      printf '%s\n' "$letter"
+      ;;
+    *)
+      printf 's\n'
+      ;;
+  esac
+}
+
+path_relative_to() {
+  local base="$1"
+  local path="$2"
+
+  case "$path" in
+    "$base")
+      printf '%s\n' ""
+      ;;
+    "$base"/*)
+      printf '%s\n' "${path#"$base"/}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+windows_path_from_library() {
+  local library="$1"
+  local path="$2"
+  local letter
+  local rel
+
+  letter="$(normalize_drive_letter "$PROTON_VORTEX_DRIVE_LETTER")"
+  rel="$(path_relative_to "$library" "$path")" || return 1
+  rel="${rel//\//\\}"
+  printf '%s:\\%s\n' "$(printf '%s' "$letter" | tr '[:lower:]' '[:upper:]')" "$rel"
+}
+
+linux_path_to_z_hint() {
+  local path="$1"
+  printf 'Z:%s\n' "$path" | sed 's#/#\\#g'
+}
+
+windows_path_hint() {
+  local library="$1"
+  local path="$2"
+
+  windows_path_from_library "$library" "$path" 2>/dev/null || linux_path_to_z_hint "$path"
+}
+
+directory_empty() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 1
+  [[ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]
 }
 
 check_platform() {
@@ -363,7 +427,14 @@ PROTON_VORTEX_DPI=$(printf '%q' "$PROTON_VORTEX_DPI")
 PROTON_VORTEX_SCALE=$(printf '%q' "$PROTON_VORTEX_SCALE")
 PROTON_VORTEX_PERFORMANCE=$(printf '%q' "$PROTON_VORTEX_PERFORMANCE")
 PROTON_VORTEX_WINEDEBUG=$(printf '%q' "$PROTON_VORTEX_WINEDEBUG")
+PROTON_VORTEX_DRIVE_LETTER=$(printf '%q' "$PROTON_VORTEX_DRIVE_LETTER")
 VORTEX_GAME_ID=$(printf '%q' "${VORTEX_GAME_ID:-}")
+VORTEX_SKYRIMSE_BASE_DIR=$(printf '%q' "${VORTEX_SKYRIMSE_BASE_DIR:-}")
+VORTEX_SKYRIMSE_STAGING_DIR=$(printf '%q' "${VORTEX_SKYRIMSE_STAGING_DIR:-}")
+VORTEX_DOWNLOADS_DIR=$(printf '%q' "${VORTEX_DOWNLOADS_DIR:-}")
+VORTEX_SKYRIMSE_GAME_WIN_PATH=$(printf '%q' "${VORTEX_SKYRIMSE_GAME_WIN_PATH:-}")
+VORTEX_SKYRIMSE_STAGING_WIN_PATH=$(printf '%q' "${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-}")
+VORTEX_DOWNLOADS_WIN_PATH=$(printf '%q' "${VORTEX_DOWNLOADS_WIN_PATH:-}")
 EOF_CONFIG
 }
 
@@ -496,6 +567,121 @@ EOF_DESKTOP
 register_nxm_handler() {
   xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm
   xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm-protocol || true
+}
+
+prepare_skyrim_vortex_paths() {
+  local write_test
+
+  if [[ -z "${SKYRIM_SE_GAME_DIR:-}" || -z "${SKYRIM_SE_LIBRARY_ROOT:-}" ]]; then
+    return 0
+  fi
+
+  PROTON_VORTEX_DRIVE_LETTER="$(normalize_drive_letter "$PROTON_VORTEX_DRIVE_LETTER")"
+  VORTEX_SKYRIMSE_BASE_DIR="${VORTEX_SKYRIMSE_BASE_DIR:-$SKYRIM_SE_LIBRARY_ROOT/VortexMods}"
+  VORTEX_SKYRIMSE_STAGING_DIR="${VORTEX_SKYRIMSE_STAGING_DIR:-$VORTEX_SKYRIMSE_BASE_DIR/skyrimse/mods}"
+  VORTEX_DOWNLOADS_DIR="${VORTEX_DOWNLOADS_DIR:-$VORTEX_SKYRIMSE_BASE_DIR/downloads}"
+
+  mkdir -p "$VORTEX_SKYRIMSE_STAGING_DIR" "$VORTEX_DOWNLOADS_DIR"
+
+  write_test="$VORTEX_SKYRIMSE_STAGING_DIR/.proton-vortex-write-test"
+  if ! printf 'ok\n' >"$write_test"; then
+    die "Cannot write to Vortex staging folder: $VORTEX_SKYRIMSE_STAGING_DIR"
+  fi
+  rm -f -- "$write_test"
+
+  write_test="$VORTEX_DOWNLOADS_DIR/.proton-vortex-write-test"
+  if ! printf 'ok\n' >"$write_test"; then
+    die "Cannot write to Vortex downloads folder: $VORTEX_DOWNLOADS_DIR"
+  fi
+  rm -f -- "$write_test"
+
+  VORTEX_SKYRIMSE_GAME_WIN_PATH="$(windows_path_hint "$SKYRIM_SE_LIBRARY_ROOT" "$SKYRIM_SE_GAME_DIR")"
+  VORTEX_SKYRIMSE_STAGING_WIN_PATH="$(windows_path_hint "$SKYRIM_SE_LIBRARY_ROOT" "$VORTEX_SKYRIMSE_STAGING_DIR")"
+  VORTEX_DOWNLOADS_WIN_PATH="$(windows_path_hint "$SKYRIM_SE_LIBRARY_ROOT" "$VORTEX_DOWNLOADS_DIR")"
+}
+
+link_empty_or_missing_dir() {
+  local link_path="$1"
+  local target_path="$2"
+  local label="$3"
+
+  mkdir -p "$(dirname -- "$link_path")" "$target_path"
+
+  if [[ -L "$link_path" ]]; then
+    ln -sfn "$target_path" "$link_path"
+    return 0
+  fi
+
+  if [[ -e "$link_path" && ! -d "$link_path" ]]; then
+    say "Leaving existing $label alone because it is not a directory: $link_path"
+    return 0
+  fi
+
+  if [[ -d "$link_path" ]]; then
+    if directory_empty "$link_path"; then
+      rmdir "$link_path"
+    else
+      say "Leaving existing non-empty $label alone: $link_path"
+      say "  New recommended path: $target_path"
+      return 0
+    fi
+  fi
+
+  ln -s "$target_path" "$link_path"
+}
+
+vortex_roaming_dir_for_prefix() {
+  local compat_data="$1"
+  local pfx="$compat_data/pfx"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+    "$pfx/drive_c/users/$USER/AppData/Roaming/Vortex"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$(dirname -- "$candidate")" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+}
+
+configure_skyrim_vortex_storage() {
+  local pfx="$COMPAT_DATA/pfx"
+  local dosdevices="$pfx/dosdevices"
+  local drive_link
+  local roaming
+  local default_staging
+  local default_downloads
+
+  if [[ -z "${SKYRIM_SE_GAME_DIR:-}" || -z "${SKYRIM_SE_LIBRARY_ROOT:-}" ]]; then
+    return 0
+  fi
+
+  prepare_skyrim_vortex_paths
+
+  mkdir -p "$dosdevices"
+  drive_link="$dosdevices/$PROTON_VORTEX_DRIVE_LETTER:"
+  if [[ -L "$drive_link" || ! -e "$drive_link" ]]; then
+    ln -sfn "$SKYRIM_SE_LIBRARY_ROOT" "$drive_link"
+  else
+    say "Warning: Proton drive $PROTON_VORTEX_DRIVE_LETTER: already exists and is not a symlink: $drive_link"
+  fi
+
+  roaming="$(vortex_roaming_dir_for_prefix "$COMPAT_DATA")"
+  default_staging="$roaming/${VORTEX_GAME_ID:-$SKYRIM_VORTEX_GAME_ID}/mods"
+  default_downloads="$roaming/downloads"
+
+  link_empty_or_missing_dir "$default_staging" "$VORTEX_SKYRIMSE_STAGING_DIR" "default Skyrim SE staging folder"
+  link_empty_or_missing_dir "$default_downloads" "$VORTEX_DOWNLOADS_DIR" "default Vortex downloads folder"
+
+  say "Prepared Vortex folders:"
+  say "  Mod staging: $VORTEX_SKYRIMSE_STAGING_WIN_PATH"
+  say "  Downloads:   $VORTEX_DOWNLOADS_WIN_PATH"
+  say "  Game folder: $VORTEX_SKYRIMSE_GAME_WIN_PATH"
 }
 
 setup_skyrim_se() {
@@ -653,6 +839,7 @@ main() {
       PROTON_APP_ID="$SKYRIM_APP_ID"
       VORTEX_GAME_ID="${VORTEX_GAME_ID:-$SKYRIM_VORTEX_GAME_ID}"
     fi
+    prepare_skyrim_vortex_paths
   fi
 
   say "Steam:  $STEAM_ROOT"
@@ -666,6 +853,8 @@ main() {
   install_launcher
   install_icons
   ensure_proton_prefix "$PROTON_DIR"
+  configure_skyrim_vortex_storage
+  write_config "$STEAM_ROOT" "$PROTON_DIR"
   configure_prefix_ui "$PROTON_DIR"
   install_vortex "$PROTON_DIR"
   write_desktop_files
@@ -685,8 +874,12 @@ main() {
   if [[ -n "$SKYRIM_SE_GAME_DIR" ]]; then
     say ""
     say "Skyrim SE:"
+    say "  Vortex staging: ${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-not prepared}"
+    say "  Vortex downloads: ${VORTEX_DOWNLOADS_WIN_PATH:-not prepared}"
+    say "  Vortex game path: ${VORTEX_SKYRIMSE_GAME_WIN_PATH:-not prepared}"
     say "  Launch SKSE: proton-vortex-skyrim-se launch-skse"
     say "  Update SKSE: proton-vortex-skyrim-se install-skse"
+    say "  Fix staging: proton-vortex-skyrim-se fix-staging"
   fi
 }
 

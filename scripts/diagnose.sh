@@ -92,6 +92,23 @@ if [[ -r "$CONFIG_FILE" ]]; then
   if [[ -n "${PROTON_VORTEX_PERFORMANCE:-}" ]]; then
     ok "Vortex performance mode: $PROTON_VORTEX_PERFORMANCE"
   fi
+  if [[ -n "${PROTON_VORTEX_DRIVE_LETTER:-}" ]]; then
+    ok "Vortex simple drive letter: ${PROTON_VORTEX_DRIVE_LETTER^^}:"
+  fi
+  if [[ -n "${VORTEX_SKYRIMSE_STAGING_DIR:-}" ]]; then
+    if [[ -d "$VORTEX_SKYRIMSE_STAGING_DIR" ]]; then
+      ok "Prepared Skyrim staging folder: $VORTEX_SKYRIMSE_STAGING_DIR"
+    else
+      warn "Prepared Skyrim staging folder missing: $VORTEX_SKYRIMSE_STAGING_DIR"
+    fi
+  fi
+  if [[ -n "${VORTEX_DOWNLOADS_DIR:-}" ]]; then
+    if [[ -d "$VORTEX_DOWNLOADS_DIR" ]]; then
+      ok "Prepared Vortex downloads folder: $VORTEX_DOWNLOADS_DIR"
+    else
+      warn "Prepared Vortex downloads folder missing: $VORTEX_DOWNLOADS_DIR"
+    fi
+  fi
   if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && -n "${COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then
     ok "Vortex and Skyrim SE share Proton prefix"
   else
@@ -135,6 +152,7 @@ printf "\nSKSE and deployment:\n"
 printf "  proton-vortex-skyrim-se install-skse\n"
 printf "  proton-vortex-skyrim-se launch-skse\n"
 printf "  proton-vortex-skyrim-se deployment\n"
+printf "  proton-vortex-skyrim-se fix-staging\n"
 printf "  proton-vortex-skyrim-se hardlink-test\n"
 printf "  proton-vortex-skyrim-se audio-check\n"
 printf "  In Skyrim console, run: getskseversion\n"

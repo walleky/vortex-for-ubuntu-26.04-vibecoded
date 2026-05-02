@@ -71,6 +71,12 @@ load_config() {
   PROTON_VORTEX_PERFORMANCE="${env_performance:-${PROTON_VORTEX_PERFORMANCE:-0}}"
   PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.5}}"
   PROTON_VORTEX_WINEDEBUG="${env_winedebug:-${PROTON_VORTEX_WINEDEBUG:--all}}"
+  PROTON_VORTEX_DRIVE_LETTER="${PROTON_VORTEX_DRIVE_LETTER:-s}"
+  VORTEX_SKYRIMSE_STAGING_DIR="${VORTEX_SKYRIMSE_STAGING_DIR:-}"
+  VORTEX_DOWNLOADS_DIR="${VORTEX_DOWNLOADS_DIR:-}"
+  VORTEX_SKYRIMSE_GAME_WIN_PATH="${VORTEX_SKYRIMSE_GAME_WIN_PATH:-}"
+  VORTEX_SKYRIMSE_STAGING_WIN_PATH="${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-}"
+  VORTEX_DOWNLOADS_WIN_PATH="${VORTEX_DOWNLOADS_WIN_PATH:-}"
   INSTALL_SOURCE_DIR="${INSTALL_SOURCE_DIR:-}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
@@ -217,6 +223,10 @@ print_info() {
   say "  performance:   $PROTON_VORTEX_PERFORMANCE"
   say "  ui scale:      ${PROTON_VORTEX_SCALE:-1.5}"
   say "  winedebug:     $PROTON_VORTEX_WINEDEBUG"
+  say "  drive hint:    ${PROTON_VORTEX_DRIVE_LETTER^^}:"
+  say "  skyrim game:   ${VORTEX_SKYRIMSE_GAME_WIN_PATH:-not prepared}"
+  say "  staging hint:  ${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-not prepared}"
+  say "  downloads:     ${VORTEX_DOWNLOADS_WIN_PATH:-not prepared}"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
   say "  logs:          $LOG_DIR"
@@ -300,6 +310,9 @@ doctor() {
   if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -f "$SKYRIM_SE_GAME_DIR/SkyrimSE.exe" ]]; then
     ok "Skyrim SE: $SKYRIM_SE_GAME_DIR"
     ok "Skyrim Vortex path hint: $(linux_path_to_windows_hint "$SKYRIM_SE_GAME_DIR")"
+    if [[ -n "${VORTEX_SKYRIMSE_GAME_WIN_PATH:-}" ]]; then
+      ok "Skyrim simple drive path: $VORTEX_SKYRIMSE_GAME_WIN_PATH"
+    fi
     [[ -d "$SKYRIM_SE_GAME_DIR/Data" ]] && ok "Skyrim Data folder: $SKYRIM_SE_GAME_DIR/Data" || { warn "Skyrim Data folder missing. Run Skyrim once from Steam, then rerun install.sh."; status=1; }
     if [[ -f "$SKYRIM_SE_GAME_DIR/skse64_loader.exe" ]]; then
       ok "SKSE loader: $SKYRIM_SE_GAME_DIR/skse64_loader.exe"
@@ -337,6 +350,15 @@ doctor() {
 
   [[ -d "$LOG_DIR" ]] && ok "logs: $LOG_DIR" || warn "logs directory is not created yet; it will be created on next Vortex launch or by doctor --fix"
 
+  if [[ -n "${VORTEX_SKYRIMSE_STAGING_DIR:-}" ]]; then
+    [[ -d "$VORTEX_SKYRIMSE_STAGING_DIR" ]] && ok "prepared staging: $VORTEX_SKYRIMSE_STAGING_DIR" || { warn "prepared staging missing: $VORTEX_SKYRIMSE_STAGING_DIR"; status=1; }
+    [[ -n "${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-}" ]] && ok "prepared staging in Vortex: $VORTEX_SKYRIMSE_STAGING_WIN_PATH"
+  fi
+  if [[ -n "${VORTEX_DOWNLOADS_DIR:-}" ]]; then
+    [[ -d "$VORTEX_DOWNLOADS_DIR" ]] && ok "prepared downloads: $VORTEX_DOWNLOADS_DIR" || { warn "prepared downloads missing: $VORTEX_DOWNLOADS_DIR"; status=1; }
+    [[ -n "${VORTEX_DOWNLOADS_WIN_PATH:-}" ]] && ok "prepared downloads in Vortex: $VORTEX_DOWNLOADS_WIN_PATH"
+  fi
+
   if [[ -n "$VORTEX_GAME_ID" && -d "$COMPAT_DATA/pfx/drive_c" ]]; then
     roaming="$(vortex_roaming_dir)"
     staging="$roaming/$VORTEX_GAME_ID/mods"
@@ -359,6 +381,15 @@ doctor() {
     fi
   fi
 
+  if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" && -n "${VORTEX_SKYRIMSE_STAGING_DIR:-}" && -d "$VORTEX_SKYRIMSE_STAGING_DIR" ]]; then
+    if same_device "$SKYRIM_SE_GAME_DIR" "$VORTEX_SKYRIMSE_STAGING_DIR"; then
+      ok "prepared staging and Skyrim are on the same filesystem"
+    else
+      warn "prepared staging and Skyrim are on different filesystems; run: proton-vortex-skyrim-se fix-staging"
+      status=1
+    fi
+  fi
+
   if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" ]]; then
     free_space="$(df -h "$SKYRIM_SE_GAME_DIR" 2>/dev/null | awk 'NR==2 {print $4}')"
     [[ -n "$free_space" ]] && ok "free space near Skyrim: $free_space"
@@ -371,6 +402,8 @@ doctor() {
   say "  - Use Hardlink Deployment when Vortex asks."
   say "  - In Vortex, downloaded mods still need Installed, Enabled, Plugins enabled, then Deploy Mods."
   say "  - If Vortex shows two Skyrims, manage the one whose path matches the Skyrim Vortex path hint above."
+  say "  - If the Windows file picker shows C: and Z:, use the simple drive path above instead of creating folders at bare Z:\\."
+  say "  - If Vortex says the staging folder is not writable, run: proton-vortex-skyrim-se fix-staging"
   say "  - If character voices are gone, run: proton-vortex-skyrim-se audio-check"
   say "  - If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test"
   say "  - Nexus Free accounts may still require manual collection download clicks."

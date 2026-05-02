@@ -29,6 +29,7 @@ bash scripts/diagnose.sh
 proton-vortex doctor
 proton-vortex doctor --fix
 proton-vortex linked
+proton-vortex-skyrim-se fix-staging
 ```
 
 For AI assistants or maintainers, read:

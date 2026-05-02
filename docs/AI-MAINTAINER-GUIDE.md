@@ -27,6 +27,8 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Writes Vortex UI DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`
 - Stores `PROTON_VORTEX_SCALE`, which the launcher passes to Electron as a scale factor
 - Stores `PROTON_VORTEX_PERFORMANCE` and `PROTON_VORTEX_WINEDEBUG` for heavy-download and log-noise tuning
+- Prepares `VortexMods` staging/download folders beside Skyrim's Steam library
+- Maps that Steam library into Proton as `PROTON_VORTEX_DRIVE_LETTER`, default `s`
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
@@ -47,7 +49,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Provides `doctor`, `doctor --fix`, `linked`, `preflight`, `last-log`, and `self-update`
 - Runs Vortex through Proton
 - Keeps plain `doctor` read-only; put state repair in `doctor --fix`
-- Prints the expected Skyrim path and Proton `Z:\...` path hint so users can identify duplicate Vortex game entries
+- Prints the expected Skyrim path, simple drive path, staging path, and downloads path so users can identify duplicate Vortex game entries
 
 `scripts/mod-intake.py`
 
@@ -68,6 +70,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Launches `skse64_loader.exe` through Proton
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 - Provides an explicit `hardlink-test` command for deployment filesystem checks
+- Provides `fix-staging` to create writable Vortex folders, Proton drive mapping, and symlinks for empty default Vortex folders
 
 `scripts/diagnose.sh`
 
@@ -146,6 +149,16 @@ Keep this contract stable unless every caller is updated.
 - Confirm shared Skyrim/Vortex prefix when Skyrim is detected
 
 Do not make it rewrite Vortex's internal state with `--set` unless the state path is verified against current Vortex.
+
+`proton-vortex-skyrim-se fix-staging` may create:
+
+```text
+<Steam Library>/VortexMods/skyrimse/mods
+<Steam Library>/VortexMods/downloads
+<Skyrim prefix>/pfx/dosdevices/s:
+```
+
+It may replace empty default Vortex staging/download folders with symlinks to those prepared folders. It must leave non-empty existing folders alone.
 
 ## NXM Behavior
 
@@ -333,12 +346,13 @@ Mods downloaded but not active:
 - Click **Deploy Mods**
 - Launch with `proton-vortex-skyrim-se launch-skse`
 - Run `proton-vortex preflight` to check prefix and staging placement
+- Run `proton-vortex-skyrim-se fix-staging` when Vortex says staging is not writable or the Windows picker is confusing
 - Run `proton-vortex-skyrim-se hardlink-test` when Vortex reports deploy failure
 
 Two Skyrim entries in Vortex:
 
-- Run `proton-vortex doctor`
-- Manage the Skyrim entry whose path matches `Skyrim Vortex path hint`
+- Run `proton-vortex-skyrim-se fix-staging`
+- Manage the Skyrim entry whose path matches the printed simple drive game path, usually `S:\steamapps\common\Skyrim Special Edition`
 - Do not tell users to delete the modded entry until deployment works from the correct game
 
 Tiny or choppy Vortex UI:

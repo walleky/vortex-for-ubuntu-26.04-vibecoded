@@ -87,6 +87,22 @@ In Vortex:
 3. Let Vortex use the suggested deployment method
 4. Do not move Vortex folders around until everything works
 
+If Vortex opens an old Windows-looking folder picker, that is normal. `C:` is Proton's fake Windows drive, and `Z:` is your real Linux filesystem. Do not try to make folders at bare `Z:\`.
+
+If Vortex says the mod staging folder is not writable, close that picker and run:
+
+```bash
+proton-vortex-skyrim-se fix-staging
+```
+
+Then use the paths it prints, usually:
+
+```text
+Mod Staging Folder: S:\VortexMods\skyrimse\mods
+Downloads Folder:   S:\VortexMods\downloads
+Game folder:        S:\steamapps\common\Skyrim Special Edition
+```
+
 ## Nexus API
 
 Skip this for normal use. Vortex handles Nexus links directly, and that is the no-hassle path.
@@ -188,12 +204,15 @@ Then run:
 
 ```bash
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
 Deploy means Vortex is putting enabled mod files into Skyrim's real `Data` folder. If deploy fails, Skyrim will usually act like the mods are not installed yet.
 
-If Vortex Settings > Mods shows a different staging folder than the command prints, run the hardlink test again with that folder path in quotes.
+Downloaded mods normally go into Vortex's downloads folder. Before the staging fix, that is usually inside Skyrim's Proton prefix under `steamapps/compatdata/489830/.../AppData/Roaming/Vortex/downloads`. After the staging fix, new downloads should use the easier `VortexMods/downloads` folder if Vortex is pointed there. Existing downloads are not deleted.
+
+If Vortex Settings > Mods shows a different staging folder than the command prints, run `proton-vortex-skyrim-se fix-staging` and switch Vortex to the printed staging path.
 
 If Vortex shows two Skyrims, run:
 
@@ -248,6 +267,7 @@ Common fixes:
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
+- If Vortex says the staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`
 - If collections are not automatic, check whether you are using a free Nexus account
 - If a non-Nexus mod is a folder, zip it first
 
@@ -255,7 +275,7 @@ Common fixes:
 
 - Do not install the native Linux Skyrim build for this setup
 - Do not launch modded Skyrim with plain `SkyrimSE.exe`
-- Do not move Vortex staging/download folders until a basic mod works
+- Do not choose bare `Z:\` for staging/download folders
 - Do not expect this to bypass Nexus Premium/free account limits
 
 ## The Happy Path

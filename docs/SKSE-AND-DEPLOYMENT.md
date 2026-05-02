@@ -101,6 +101,7 @@ Run:
 
 ```bash
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -109,6 +110,40 @@ If Vortex Settings > Mods shows a custom staging folder, you can test that exact
 ```bash
 proton-vortex-skyrim-se hardlink-test "/path/to/your/Vortex/staging/folder"
 ```
+
+## Vortex Says Staging Is Not Writable
+
+The old Windows-looking file picker is expected. Vortex is a Windows app running inside Proton:
+
+- `C:` is the fake Windows drive inside the Proton prefix.
+- `Z:` is your real Linux filesystem.
+- Many places under bare `Z:\` are not writable, and it is easy to pick the wrong folder.
+
+Run:
+
+```bash
+proton-vortex-skyrim-se fix-staging
+```
+
+That creates a visible `VortexMods` folder beside the Steam library, maps the Steam library into Proton as a simple drive such as `S:`, and tests that hardlink deployment can work.
+
+Use the printed paths in Vortex:
+
+```text
+Game folder:        S:\steamapps\common\Skyrim Special Edition
+Mod Staging Folder: S:\VortexMods\skyrimse\mods
+Downloads Folder:   S:\VortexMods\downloads
+```
+
+If your drive letter is different, use the exact paths printed by the command. Do not choose bare `Z:\`.
+
+Existing Vortex downloads usually live under `%APPDATA%\Vortex\downloads`, which is inside the Proton prefix. On Linux that is under Skyrim's compatdata folder, usually:
+
+```text
+<SteamLibrary>/steamapps/compatdata/489830/pfx/drive_c/users/steamuser/AppData/Roaming/Vortex/downloads
+```
+
+After `fix-staging`, new downloads can go to the prepared `VortexMods/downloads` folder if Vortex is using the prepared path. Existing downloads are not deleted.
 
 ## Vortex Shows Two Skyrims
 
@@ -127,12 +162,12 @@ Skyrim SE:
 Skyrim Vortex path hint:
 ```
 
-In Vortex, open the game details for each Skyrim entry. The one you manage should match the path from `proton-vortex doctor`, usually as a Proton path starting with `Z:\...`.
+In Vortex, open the game details for each Skyrim entry. The one you manage should match the simple drive path from `proton-vortex-skyrim-se fix-staging`, usually `S:\steamapps\common\Skyrim Special Edition`.
 
 Fix path:
 
 1. In Vortex, go to **Games**
-2. Find the Skyrim Special Edition entry whose game path matches `proton-vortex doctor`
+2. Find the Skyrim Special Edition entry whose game path matches `proton-vortex-skyrim-se fix-staging`
 3. Manage that entry
 4. If Vortex lets you choose manually, set the location to the folder containing `SkyrimSE.exe`
 5. Do not delete the entry that currently has your downloaded mods until the correct game deploys successfully
@@ -148,6 +183,7 @@ The staging folder and Skyrim folder must be on the same filesystem/partition. C
 
 ```bash
 proton-vortex preflight
+proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -214,6 +250,7 @@ proton-vortex doctor
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
 proton-vortex-skyrim-se launch-skse
 ```

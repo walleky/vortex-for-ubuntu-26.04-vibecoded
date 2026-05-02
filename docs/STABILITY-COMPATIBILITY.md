@@ -14,6 +14,15 @@ Running `git pull` and `bash install.sh` replaces:
 
 It keeps using the same configured Proton prefix and Vortex app data.
 
+When Skyrim SE is detected, updates may also create these support folders if missing:
+
+```text
+<Steam Library>/VortexMods/skyrimse/mods
+<Steam Library>/VortexMods/downloads
+```
+
+If the old default Vortex staging/download folders are empty, the installer may replace those empty folders with symlinks to the prepared folders. It does not delete non-empty mod/download folders.
+
 ## What Updates Do Not Delete
 
 Updates do not delete:
@@ -55,6 +64,8 @@ SKSE_AUTO_UPDATE=1 bash install.sh
 
 It should not rewrite Vortex's internal configuration.
 
+`proton-vortex-skyrim-se fix-staging` creates prepared staging/download folders, maps the Steam library into Proton as a simple drive such as `S:`, links empty default Vortex folders, and runs a hardlink test. It leaves non-empty existing Vortex folders alone.
+
 ## Proton Compatibility
 
 The installer chooses Proton in this order:
@@ -78,6 +89,7 @@ PROTON_PREFER_GE=1 bash install.sh
 - Heavy download sessions can use `PROTON_VORTEX_PERFORMANCE=1`; it changes launcher flags only, not Vortex data.
 - Nexus Premium controls fully automatic collection downloads; the wrapper does not bypass Nexus account limits.
 - Vortex hardlink deployment needs the staging folder and Skyrim folder on the same filesystem.
+- If Vortex's Windows picker shows `C:` and `Z:`, use `proton-vortex-skyrim-se fix-staging` and the printed `S:\...` paths instead of creating folders at bare `Z:\`.
 - `proton-vortex-skyrim-se hardlink-test` writes and removes one tiny test file to confirm hardlinks can be created.
 - Downloaded mods still need Vortex's normal install, enable, plugin-enable, and deploy steps before Skyrim can load them.
 - Vortex can discover duplicate Skyrim entries through different Proton-visible paths. Manage the one matching `proton-vortex doctor`.

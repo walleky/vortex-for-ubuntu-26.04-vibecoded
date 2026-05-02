@@ -29,6 +29,7 @@ If you are an AI assistant or maintainer:
 - Vortex installed into a Proton prefix managed by this bundle
 - If Steam Skyrim Special Edition is installed, Vortex uses Skyrim SE's Proton prefix by default
 - If Steam Skyrim Special Edition is found, plain Vortex launches with Vortex game id `skyrimse`
+- A writable `VortexMods` folder beside Skyrim's Steam library, exposed to Proton as a simple drive such as `S:`
 - Automatic SKSE64 install helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
@@ -75,7 +76,8 @@ The installer will:
 5. Install Vortex silently into Skyrim SE's Proton prefix if Skyrim SE is found, otherwise into its own prefix
 6. Create desktop launchers
 7. Register `nxm://` links
-8. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found and SKSE is not already present
+8. Prepare writable Skyrim SE Vortex staging/download folders beside the Steam library
+9. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found and SKSE is not already present
 
 ## Use
 
@@ -134,7 +136,16 @@ Then it opens Vortex with a Proton-readable `file:///Z:/...` archive URL. For pa
 
 Vortex is still the Windows app. Proton makes it run on Ubuntu by giving it a fake Windows prefix. This wrapper installs Vortex into Skyrim SE's Steam Proton prefix, so Vortex and Skyrim see the same fake Windows user profile and the same Steam library.
 
-For Skyrim SE, Vortex stages unpacked mods under its `skyrimse` Vortex data folder, then deploys them into Skyrim's `Data` folder. Vortex normally uses hardlinks for this: files appear in the game folder without duplicating the full data. The important rule is that the staging folder and Skyrim folder must be on the same filesystem/partition. The default setup aims for that by using Skyrim's own compatdata folder.
+For Skyrim SE, Vortex stages unpacked mods under a `skyrimse` staging folder, then deploys them into Skyrim's `Data` folder. Vortex normally uses hardlinks for this: files appear in the game folder without duplicating the full data. The important rule is that the staging folder and Skyrim folder must be on the same filesystem/partition.
+
+The wrapper now creates a normal visible folder beside the Steam library, usually:
+
+```text
+<SteamLibrary>/VortexMods/skyrimse/mods
+<SteamLibrary>/VortexMods/downloads
+```
+
+Inside Vortex's old Windows file picker, use the prepared simple drive path printed by `proton-vortex-skyrim-se fix-staging`, usually `S:\VortexMods\skyrimse\mods`. Do not create folders at bare `Z:\`; in Proton, `Z:` is your whole Linux filesystem, and many places under it are not writable.
 
 SKSE64 is handled directly by this wrapper because SKSE needs loader/DLL files beside `SkyrimSE.exe`.
 
@@ -154,6 +165,7 @@ proton-vortex last-log
 proton-vortex self-update
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se fix-staging
 bash scripts/diagnose.sh
 bash uninstall.sh
 ```
@@ -179,6 +191,7 @@ bash uninstall.sh
 - If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
+- If Vortex says the mod staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`, then use the printed `S:\...` paths in Vortex.
 - If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
 - If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
 - If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.

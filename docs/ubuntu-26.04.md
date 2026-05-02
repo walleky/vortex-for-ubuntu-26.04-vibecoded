@@ -62,6 +62,37 @@ VORTEX_STANDALONE_PREFIX=1 bash install.sh
 
 When Skyrim SE is found, the launcher records Vortex game id `skyrimse` and uses it for plain Vortex launches.
 
+## Staging And Downloads
+
+Vortex is a Windows app, so its folder picker shows Proton drives:
+
+- `C:` is the fake Windows drive inside the Proton prefix.
+- `Z:` is your real Linux filesystem.
+- A prepared drive such as `S:` points directly at Skyrim's Steam library.
+
+Do not make folders at bare `Z:\`. Run:
+
+```bash
+proton-vortex-skyrim-se fix-staging
+```
+
+The command creates and tests:
+
+```text
+<SteamLibrary>/VortexMods/skyrimse/mods
+<SteamLibrary>/VortexMods/downloads
+```
+
+Then use the printed paths in Vortex Settings:
+
+```text
+Mod Staging Folder: S:\VortexMods\skyrimse\mods
+Downloads Folder:   S:\VortexMods\downloads
+Game folder:        S:\steamapps\common\Skyrim Special Edition
+```
+
+Downloaded mods are archives. Installed mods are unpacked into the staging folder. Deployed mods are hardlinked/copied into Skyrim's real `Data` folder.
+
 ## Vortex UI Scale
 
 The installer sets Windows DPI inside the Proton prefix to `120` and launches Vortex with Electron scale `1.5` so Vortex is less tiny on Ubuntu high-DPI desktops.
@@ -141,6 +172,7 @@ If Vortex downloaded mods but Skyrim did not change:
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
+proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -148,7 +180,7 @@ Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
 
 Deployment means Vortex links enabled mod files into Skyrim's real `Data` folder. If deployment fails, the game can launch normally but behave as if mods are missing.
 
-If Vortex Settings > Mods shows a custom staging folder, test that exact folder with `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
+If Vortex Settings > Mods says staging is not writable, run `proton-vortex-skyrim-se fix-staging` and switch Vortex to the printed `S:\...` staging folder.
 
 If Vortex shows two Skyrim entries, the active one may point at the wrong discovered game path. Run:
 
@@ -156,7 +188,7 @@ If Vortex shows two Skyrim entries, the active one may point at the wrong discov
 proton-vortex doctor
 ```
 
-Then manage the Skyrim entry whose Vortex game path matches the printed `Skyrim Vortex path hint`.
+Then manage the Skyrim entry whose Vortex game path matches the printed simple drive path, usually `S:\steamapps\common\Skyrim Special Edition`.
 
 If this project was installed from a git clone:
 
@@ -335,7 +367,7 @@ Firefox can keep its own application preference after Linux registers the handle
 
 ## Game Paths
 
-Vortex can see Linux files through Proton's `Z:` drive mapping. Steam games normally live under paths like:
+Vortex can see Linux files through Proton's `Z:` drive mapping, but the wrapper also creates a simpler Steam-library drive such as `S:` because it is easier to pick and usually writable. Steam games normally live under paths like:
 
 ```text
 ~/.steam/root/steamapps/common

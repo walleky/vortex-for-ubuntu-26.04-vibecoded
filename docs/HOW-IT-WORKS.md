@@ -15,6 +15,8 @@ This project does the Linux desktop integration:
 - Finds Skyrim Special Edition
 - Installs Vortex into the right Proton prefix
 - Creates the Proton prefix if it is missing
+- Creates writable Vortex staging/download folders near Skyrim's Steam library
+- Maps that Steam library into Proton as a simple drive letter such as `S:`
 - Registers `nxm://` browser links
 - Downloads SKSE64 and puts the files where Skyrim expects them when SKSE is missing
 - Imports local and external mod archives into Vortex
@@ -41,14 +43,23 @@ When Skyrim SE is found, this project installs/runs Vortex in that same prefix. 
 
 Vortex downloads a mod archive, unpacks it into a staging folder, and then deploys the files into Skyrim's game folder. For Bethesda games, Vortex normally uses hardlinks. A hardlink makes the file appear inside Skyrim's `Data` folder while the managed copy still lives in Vortex's staging area.
 
-The practical rule is: Vortex's Skyrim SE staging folder must be on the same filesystem/partition as the Skyrim SE folder. This wrapper defaults to Skyrim's own Proton compatdata folder, which normally sits beside the Steam library where Skyrim is installed:
+The practical rule is: Vortex's Skyrim SE staging folder must be on the same filesystem/partition as the Skyrim SE folder. The wrapper creates visible folders beside the Steam library:
 
 ```text
-<Steam Library>/steamapps/compatdata/489830
 <Steam Library>/steamapps/common/Skyrim Special Edition
+<Steam Library>/VortexMods/skyrimse/mods
+<Steam Library>/VortexMods/downloads
 ```
 
-That is why using Skyrim's prefix matters. It gives Vortex a Windows-looking home while keeping the staging area close enough to Skyrim for hardlink deployment.
+It also maps the Steam library into the Proton prefix as a simple drive letter, usually `S:`. That gives Vortex paths like:
+
+```text
+S:\steamapps\common\Skyrim Special Edition
+S:\VortexMods\skyrimse\mods
+S:\VortexMods\downloads
+```
+
+That avoids asking users to create folders under bare `Z:\`, which is Proton's view of the entire Linux filesystem and often includes paths Vortex cannot write to.
 
 If Vortex says deploy failed, it means the download/install state inside Vortex may be fine, but Vortex could not link the enabled files into Skyrim's `Data` folder. `proton-vortex-skyrim-se hardlink-test` checks the most common filesystem cause.
 
@@ -62,14 +73,16 @@ If Vortex says deploy failed, it means the download/install state inside Vortex 
 4. Finds Proton
 5. Looks for Steam Skyrim SE
 6. Chooses Skyrim SE's Proton prefix if Skyrim is installed
-7. Creates the selected Proton prefix if it does not exist yet
-8. Downloads the latest Vortex installer from GitHub
-9. Runs the Vortex installer through Proton
-10. Installs launcher scripts into `~/.local/bin`
-11. Installs helper scripts into `~/.local/share/proton-vortex`
-12. Creates desktop launchers
-13. Registers `nxm://` links
-14. Installs SKSE64 if Skyrim SE is found and SKSE is not already present
+7. Prepares `VortexMods` staging/download folders beside the Steam library
+8. Creates the selected Proton prefix if it does not exist yet
+9. Adds the simple Steam-library drive mapping inside Proton
+10. Downloads the latest Vortex installer from GitHub
+11. Runs the Vortex installer through Proton
+12. Installs launcher scripts into `~/.local/bin`
+13. Installs helper scripts into `~/.local/share/proton-vortex`
+14. Creates desktop launchers
+15. Registers `nxm://` links
+16. Installs SKSE64 if Skyrim SE is found and SKSE is not already present
 
 ## What Happens When You Click A Nexus Mod Link
 
@@ -175,9 +188,11 @@ getskseversion
 
 If Vortex downloaded mods but the game looks unchanged, Vortex still needs the normal deployment chain: installed mods, enabled mods, enabled plugins, then **Deploy Mods**.
 
-If Vortex shows two Skyrim entries, use `proton-vortex doctor` to print the expected Linux path and Proton `Z:\...` path hint. The Vortex-managed Skyrim entry should match that path.
+If Vortex shows two Skyrim entries, use `proton-vortex-skyrim-se fix-staging` to print the simple drive path. The Vortex-managed Skyrim entry should usually match `S:\steamapps\common\Skyrim Special Edition`.
 
-`proton-vortex-skyrim-se deployment` checks the Skyrim `Data` folder, voice archives, deployed plugin files, and Proton `plugins.txt`. `proton-vortex-skyrim-se audio-fix` is optional and installs `xact` into the Skyrim Proton prefix through `protontricks` or `winetricks` for the Proton voice-audio issue.
+`proton-vortex-skyrim-se fix-staging` creates the prepared staging/download folders, adds the Proton drive mapping, links empty default Vortex folders to the prepared folders, and runs a hardlink deployment test.
+
+`proton-vortex-skyrim-se deployment` checks the Skyrim `Data` folder, prepared staging folder, voice archives, deployed plugin files, and Proton `plugins.txt`. `proton-vortex-skyrim-se audio-fix` is optional and installs `xact` into the Skyrim Proton prefix through `protontricks` or `winetricks` for the Proton voice-audio issue.
 
 `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` adds Electron performance flags and quiets Wine debug output for heavier download sessions.
 
@@ -223,6 +238,13 @@ External downloads:
 
 ```text
 ~/.local/share/proton-vortex/downloads/external
+```
+
+Prepared Vortex downloads and staging for Skyrim SE:
+
+```text
+<Steam Library>/VortexMods/downloads
+<Steam Library>/VortexMods/skyrimse/mods
 ```
 
 Desktop files:

@@ -30,6 +30,66 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+normalize_drive_letter() {
+  local letter="${1:-s}"
+  letter="$(printf '%s' "$letter" | tr '[:upper:]' '[:lower:]')"
+  case "$letter" in
+    [a-z])
+      printf '%s\n' "$letter"
+      ;;
+    *)
+      printf 's\n'
+      ;;
+  esac
+}
+
+path_relative_to() {
+  local base="$1"
+  local path="$2"
+
+  case "$path" in
+    "$base")
+      printf '%s\n' ""
+      ;;
+    "$base"/*)
+      printf '%s\n' "${path#"$base"/}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+windows_path_from_library() {
+  local library="$1"
+  local path="$2"
+  local letter
+  local rel
+
+  letter="$(normalize_drive_letter "${PROTON_VORTEX_DRIVE_LETTER:-s}")"
+  rel="$(path_relative_to "$library" "$path")" || return 1
+  rel="${rel//\//\\}"
+  printf '%s:\\%s\n' "$(printf '%s' "$letter" | tr '[:lower:]' '[:upper:]')" "$rel"
+}
+
+linux_path_to_z_hint() {
+  local path="$1"
+  printf 'Z:%s\n' "$path" | sed 's#/#\\#g'
+}
+
+windows_path_hint() {
+  local library="$1"
+  local path="$2"
+
+  windows_path_from_library "$library" "$path" 2>/dev/null || linux_path_to_z_hint "$path"
+}
+
+directory_empty() {
+  local dir="$1"
+  [[ -d "$dir" ]] || return 1
+  [[ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]
+}
+
 load_config() {
   if [[ ! -r "$CONFIG_FILE" ]]; then
     die "Config not found at $CONFIG_FILE. Run install.sh first."
@@ -43,6 +103,7 @@ load_config() {
   fi
 
   PROTON_VORTEX_WINEDEBUG="${PROTON_VORTEX_WINEDEBUG:--all}"
+  PROTON_VORTEX_DRIVE_LETTER="$(normalize_drive_letter "${PROTON_VORTEX_DRIVE_LETTER:-s}")"
 }
 
 steam_libraries() {
@@ -114,6 +175,66 @@ find_skyrim_compat_data() {
 
   library="$(find_skyrim_library_root "$game_dir")"
   printf '%s\n' "$library/steamapps/compatdata/$SKYRIM_APP_ID"
+}
+
+skyrim_library_root() {
+  local game_dir="$1"
+
+  if [[ -n "${SKYRIM_SE_LIBRARY_ROOT:-}" && -d "$SKYRIM_SE_LIBRARY_ROOT/steamapps" ]]; then
+    printf '%s\n' "$SKYRIM_SE_LIBRARY_ROOT"
+    return 0
+  fi
+
+  find_skyrim_library_root "$game_dir"
+}
+
+vortex_base_dir_for_library() {
+  local library="$1"
+  printf '%s\n' "${VORTEX_SKYRIMSE_BASE_DIR:-$library/VortexMods}"
+}
+
+vortex_prepared_staging_dir() {
+  local library="$1"
+  local base
+  base="$(vortex_base_dir_for_library "$library")"
+  printf '%s\n' "${VORTEX_SKYRIMSE_STAGING_DIR:-$base/skyrimse/mods}"
+}
+
+vortex_prepared_downloads_dir() {
+  local library="$1"
+  local base
+  base="$(vortex_base_dir_for_library "$library")"
+  printf '%s\n' "${VORTEX_DOWNLOADS_DIR:-$base/downloads}"
+}
+
+link_empty_or_missing_dir() {
+  local link_path="$1"
+  local target_path="$2"
+  local label="$3"
+
+  mkdir -p "$(dirname -- "$link_path")" "$target_path"
+
+  if [[ -L "$link_path" ]]; then
+    ln -sfn "$target_path" "$link_path"
+    return 0
+  fi
+
+  if [[ -e "$link_path" && ! -d "$link_path" ]]; then
+    say "Leaving existing $label alone because it is not a directory: $link_path"
+    return 0
+  fi
+
+  if [[ -d "$link_path" ]]; then
+    if directory_empty "$link_path"; then
+      rmdir "$link_path"
+    else
+      say "Leaving existing non-empty $label alone: $link_path"
+      say "  New recommended path: $target_path"
+      return 0
+    fi
+  fi
+
+  ln -s "$target_path" "$link_path"
 }
 
 same_device() {
@@ -331,22 +452,35 @@ voice_archive_count() {
 
 deployment_status() {
   local game_dir
+  local library
   local compat_data
   local data_dir
+  local prepared_staging
+  local prepared_downloads
   local plugins_txt=""
   local data_plugins
   local enabled_plugins
   local voices
 
   game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
   compat_data="$(find_skyrim_compat_data "$game_dir")"
   data_dir="$game_dir/Data"
+  prepared_staging="$(vortex_prepared_staging_dir "$library")"
+  prepared_downloads="$(vortex_prepared_downloads_dir "$library")"
 
   say "Skyrim SE deployment/audio check"
   say "  game dir:   $game_dir"
   say "  data dir:   $data_dir"
   say "  prefix:     $compat_data"
-  say "  staging:    $(vortex_staging_dir "$compat_data")"
+  say "  default staging:  $(vortex_staging_dir "$compat_data")"
+  say "  prepared staging: $prepared_staging"
+  say "  prepared downloads: $prepared_downloads"
+  if [[ -d "$library" ]]; then
+    say "  Proton drive hint: ${PROTON_VORTEX_DRIVE_LETTER^^}:\\ maps to $library"
+    say "  Vortex game path:  $(windows_path_hint "$library" "$game_dir")"
+    say "  Vortex staging:    $(windows_path_hint "$library" "$prepared_staging")"
+  fi
 
   if [[ -d "$data_dir" ]]; then
     say "  Data folder: present"
@@ -383,43 +517,47 @@ deployment_status() {
     say "  note: Data has few plugin files. This can be normal for texture-only mods, but if you expected plugins, Vortex may not have deployed them."
   fi
 
-  if [[ -d "$(vortex_staging_dir "$compat_data")" ]]; then
-    if same_device "$data_dir" "$(vortex_staging_dir "$compat_data")"; then
-      say "  staging/Data filesystem: same"
+  if [[ -d "$prepared_staging" ]]; then
+    if same_device "$data_dir" "$prepared_staging"; then
+      say "  prepared staging/Data filesystem: same"
     else
-      say "  staging/Data filesystem: different"
-      say "  Fix: set Vortex staging to a folder on the same filesystem as Skyrim."
+      say "  prepared staging/Data filesystem: different"
+      say "  Fix: run proton-vortex-skyrim-se fix-staging and keep Vortex staging on the same filesystem as Skyrim."
     fi
   else
-    say "  staging folder: not found yet"
+    say "  prepared staging folder: not found yet"
+    say "  Fix: run proton-vortex-skyrim-se fix-staging"
   fi
 
   say ""
   say "Vortex checklist:"
-  say "  1. Use the Skyrim entry matching: Z:${game_dir//\//\\}"
+  say "  1. Use the Skyrim entry matching: $(windows_path_hint "$library" "$game_dir")"
   say "  2. Mods tab: Installed and Enabled"
   say "  3. Plugins tab: plugins Enabled"
   say "  4. Click Deploy Mods"
   say "  5. Launch: proton-vortex-skyrim-se launch-skse"
-  say "  6. If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test"
+  say "  6. If Vortex says staging is not writable, run: proton-vortex-skyrim-se fix-staging"
+  say "  7. If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test \"$prepared_staging\""
 }
 
 hardlink_test() {
   local requested_staging="${1:-}"
   local game_dir
-  local compat_data
+  local library
   local data_dir
   local staging_dir
   local source_file
   local target_file
 
   game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
-  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
   data_dir="$game_dir/Data"
   if [[ -n "$requested_staging" ]]; then
     staging_dir="$requested_staging"
+  elif [[ -n "${VORTEX_SKYRIMSE_STAGING_DIR:-}" ]]; then
+    staging_dir="$VORTEX_SKYRIMSE_STAGING_DIR"
   else
-    staging_dir="$(vortex_staging_dir "$compat_data")"
+    staging_dir="$(vortex_prepared_staging_dir "$library")"
   fi
 
   [[ -d "$data_dir" ]] || die "Skyrim Data folder missing: $data_dir"
@@ -445,6 +583,8 @@ hardlink_test() {
   say "  data:    $data_dir"
   if [[ -n "$requested_staging" ]]; then
     say "  source:  custom staging folder"
+  elif [[ "$staging_dir" == "$(vortex_prepared_staging_dir "$library")" ]]; then
+    say "  source:  prepared Steam-library staging folder"
   else
     say "  source:  expected Vortex skyrimse staging folder"
   fi
@@ -471,6 +611,77 @@ hardlink_test() {
   say "  reason:  Linux could not create a hardlink into Skyrim Data"
   say "  fixes:   close Skyrim/Vortex, check folder permissions, and keep staging on the same filesystem as Skyrim"
   return 1
+}
+
+fix_staging() {
+  local game_dir
+  local library
+  local compat_data
+  local pfx
+  local dosdevices
+  local drive_link
+  local roaming
+  local default_staging
+  local default_downloads
+  local staging_dir
+  local downloads_dir
+  local game_win
+  local staging_win
+  local downloads_win
+  local test_file
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  pfx="$compat_data/pfx"
+  [[ -d "$pfx/drive_c" ]] || die "Proton prefix missing at $pfx. Run Skyrim once from Steam, then rerun bash install.sh."
+
+  staging_dir="$(vortex_prepared_staging_dir "$library")"
+  downloads_dir="$(vortex_prepared_downloads_dir "$library")"
+
+  mkdir -p "$staging_dir" "$downloads_dir"
+
+  test_file="$staging_dir/.proton-vortex-write-test"
+  printf 'ok\n' >"$test_file" || die "Cannot write to prepared staging folder: $staging_dir"
+  rm -f -- "$test_file"
+
+  test_file="$downloads_dir/.proton-vortex-write-test"
+  printf 'ok\n' >"$test_file" || die "Cannot write to prepared downloads folder: $downloads_dir"
+  rm -f -- "$test_file"
+
+  dosdevices="$pfx/dosdevices"
+  mkdir -p "$dosdevices"
+  drive_link="$dosdevices/$PROTON_VORTEX_DRIVE_LETTER:"
+  if [[ -L "$drive_link" || ! -e "$drive_link" ]]; then
+    ln -sfn "$library" "$drive_link"
+  else
+    say "Warning: Proton drive $PROTON_VORTEX_DRIVE_LETTER: already exists and is not a symlink: $drive_link"
+  fi
+
+  roaming="$(vortex_roaming_dir "$compat_data")"
+  default_staging="$roaming/${VORTEX_GAME_ID:-skyrimse}/mods"
+  default_downloads="$roaming/downloads"
+  link_empty_or_missing_dir "$default_staging" "$staging_dir" "default Skyrim SE staging folder"
+  link_empty_or_missing_dir "$default_downloads" "$downloads_dir" "default Vortex downloads folder"
+
+  game_win="$(windows_path_hint "$library" "$game_dir")"
+  staging_win="$(windows_path_hint "$library" "$staging_dir")"
+  downloads_win="$(windows_path_hint "$library" "$downloads_dir")"
+
+  say "Prepared writable Vortex folders"
+  say "  Linux staging:   $staging_dir"
+  say "  Linux downloads: $downloads_dir"
+  say "  Proton drive:    ${PROTON_VORTEX_DRIVE_LETTER^^}: maps to $library"
+  say ""
+  say "Use these inside Vortex if it asks for folders:"
+  say "  Game folder:        $game_win"
+  say "  Mod Staging Folder: $staging_win"
+  say "  Downloads Folder:   $downloads_win"
+  say ""
+  say "Do not create folders at bare Z:\\. In Proton, Z: is your whole Linux filesystem and many parts are not writable."
+  say "If Vortex already has a wrong Skyrim entry, manage the entry whose game folder matches the Game folder above."
+  say ""
+  hardlink_test "$staging_dir"
 }
 
 audio_fix() {
@@ -552,6 +763,7 @@ diagnose() {
     say ""
     say "To check deployment/audio:"
     say "  proton-vortex-skyrim-se deployment"
+    say "  proton-vortex-skyrim-se fix-staging"
     say "  proton-vortex-skyrim-se hardlink-test"
     say "  proton-vortex-skyrim-se audio-check"
   else
@@ -566,6 +778,7 @@ Usage:
   proton-vortex-skyrim-se launch-skse
   proton-vortex-skyrim-se diagnose
   proton-vortex-skyrim-se deployment
+  proton-vortex-skyrim-se fix-staging
   proton-vortex-skyrim-se hardlink-test [staging-folder]
   proton-vortex-skyrim-se audio-check
   proton-vortex-skyrim-se audio-fix
@@ -591,6 +804,9 @@ main() {
       ;;
     deployment|deploy-check|audio-check)
       deployment_status
+      ;;
+    fix-staging|staging-fix|prepare-staging|paths)
+      fix_staging
       ;;
     hardlink-test|deploy-test)
       shift
