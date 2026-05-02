@@ -21,6 +21,8 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 
 - Main installer
 - Detects Linux, Steam, Proton, Skyrim SE
+- Rejects Flatpak Steam by default because host Proton cannot reliably use Flatpak's runtime
+- Bootstraps the selected Proton prefix before Vortex install
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
@@ -33,7 +35,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Loads `~/.local/share/proton-vortex/config.env`
 - Finds `Vortex.exe`
 - Delegates NXM/URL/archive intake to `mod-intake.py`
-- Converts Linux absolute paths to Proton `Z:\...` paths
+- Passes local archives to Vortex as Proton-readable `file:///Z:/...` URLs
 - Runs Vortex through Proton
 
 `scripts/mod-intake.py`
@@ -41,8 +43,8 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Linux-side mod intake
 - Parses `nxm://`
 - Stores/validates Nexus API keys
-- Calls Nexus API for file metadata and download links
-- Downloads Nexus archives when allowed
+- Calls Nexus API for validation and opt-in file download helpers
+- Downloads Nexus archives only when `PROTON_VORTEX_API_NXM=1`
 - Downloads direct external archive URLs
 - Resolves local archive files
 - Prints a two-line machine-readable result for `proton-vortex.sh`
@@ -82,7 +84,14 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 
 ```text
 install
-/path/to/archive.7z
+nxm://...
+```
+
+or:
+
+```text
+install-url
+file:///Z:/home/user/archive.7z
 ```
 
 or:
@@ -101,14 +110,14 @@ whatever
 
 Warnings must go to stderr so Bash can safely read stdout.
 
-`proton-vortex.sh` is responsible for turning Linux absolute paths into Proton paths:
+`mod-intake.py` is responsible for turning Linux absolute paths into Proton file URLs:
 
 ```text
 /home/user/file.7z
-Z:\home\user\file.7z
+file:///Z:/home/user/file.7z
 ```
 
-Do not move that path conversion into `mod-intake.py` unless every caller is updated.
+Keep this contract stable unless every caller is updated.
 
 ## NXM Behavior
 
@@ -118,15 +127,24 @@ Normal Nexus mod file link:
 nxm://skyrimspecialedition/mods/<mod_id>/files/<file_id>?key=...&expires=...
 ```
 
-With API key:
+Default behavior:
+
+```text
+download
+nxm://...
+```
+
+This preserves Vortex's native Nexus metadata, update tracking, dependencies, and collection behavior.
+
+With `PROTON_VORTEX_API_NXM=1` and an API key:
 
 1. Parse game, mod id, file id, key, expires
 2. Call file info endpoint
 3. Call download link endpoint
 4. Download archive
-5. Return `install <archive>`
+5. Return `install-url file:///Z:/...`
 
-Without API key or on API failure:
+Without the opt-in flag, without API key, or on API failure:
 
 ```text
 download
@@ -265,3 +283,9 @@ External mod URL fails:
 
 - URL is probably a webpage, not a direct archive
 - Tell user to download the archive first and run `proton-vortex import <file>`
+
+No Proton prefix found:
+
+- `COMPAT_DATA` exists but `COMPAT_DATA/pfx` does not
+- Rerun `bash install.sh`; it should call Proton `wineboot -u`
+- If using Skyrim's own prefix, launching Skyrim once from Steam also creates it

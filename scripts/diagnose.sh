@@ -58,6 +58,19 @@ check_file "$NXM_DESKTOP" "NXM desktop file"
 check_file "$SKYRIM_DESKTOP" "Skyrim SE desktop file"
 check_file "$IMPORT_DESKTOP" "archive import desktop file"
 
+if [[ -r "$CONFIG_FILE" ]]; then
+  # shellcheck source=/dev/null
+  . "$CONFIG_FILE"
+  if [[ -n "${COMPAT_DATA:-}" ]]; then
+    if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+      ok "Proton prefix exists: $COMPAT_DATA/pfx"
+    else
+      fail "Proton prefix missing: $COMPAT_DATA/pfx"
+      warn "Fix: rerun bash install.sh. If this is Skyrim's prefix, launching Skyrim once from Steam also creates it."
+    fi
+  fi
+fi
+
 if [[ -x "$LAUNCHER" ]]; then
   "$LAUNCHER" --print-info || true
 fi

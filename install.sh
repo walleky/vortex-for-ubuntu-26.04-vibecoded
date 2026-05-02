@@ -17,6 +17,7 @@ APP_DESKTOP_DIR="$DATA_HOME/applications"
 CONFIG_FILE="$APP_HOME/config.env"
 APP_COMPAT_DATA="$APP_HOME/compatdata"
 COMPAT_DATA="$APP_COMPAT_DATA"
+PROTON_APP_ID="${PROTON_APP_ID:-$SKYRIM_APP_ID}"
 LAUNCHER="$BIN_HOME/proton-vortex"
 SKYRIM_HELPER="$BIN_HOME/proton-vortex-skyrim-se"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
@@ -99,6 +100,16 @@ find_steam_root() {
   die "Steam was not found. Install Steam, run it once, install Proton, then rerun this installer. You can also set STEAM_ROOT=/path/to/Steam."
 }
 
+is_flatpak_steam_root() {
+  local steam_root="$1"
+  case "$steam_root" in
+    "$HOME/.var/app/com.valvesoftware.Steam/"*|*/.var/app/com.valvesoftware.Steam/.local/share/Steam)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
 collect_proton_bins() {
   local steam_root="$1"
   local search_roots=(
@@ -106,9 +117,12 @@ collect_proton_bins() {
     "$steam_root/steamapps/common"
     "$HOME/.steam/root/compatibilitytools.d"
     "$HOME/.local/share/Steam/compatibilitytools.d"
-    "$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d"
   )
   local root
+
+  if [[ "${ALLOW_FLATPAK_STEAM:-0}" == "1" ]]; then
+    search_roots+=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
+  fi
 
   if [[ -n "${PROTON_PATH:-}" && -x "$PROTON_PATH/proton" ]]; then
     printf '%s\n' "$PROTON_PATH/proton"
@@ -265,6 +279,7 @@ APP_HOME=$(printf '%q' "$APP_HOME")
 SKYRIM_SE_GAME_DIR=$(printf '%q' "${SKYRIM_SE_GAME_DIR:-}")
 SKYRIM_SE_LIBRARY_ROOT=$(printf '%q' "${SKYRIM_SE_LIBRARY_ROOT:-}")
 SKYRIM_SE_COMPAT_DATA=$(printf '%q' "${SKYRIM_SE_COMPAT_DATA:-}")
+PROTON_APP_ID=$(printf '%q' "$PROTON_APP_ID")
 EOF_CONFIG
 }
 
@@ -395,13 +410,44 @@ find_installed_vortex() {
   fi
 }
 
-run_with_proton() {
+run_proton_command() {
   local proton_dir="$1"
   shift
 
   STEAM_COMPAT_DATA_PATH="$COMPAT_DATA" \
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
-  "$proton_dir/proton" waitforexitandrun "$@"
+  STEAM_COMPAT_APP_ID="$PROTON_APP_ID" \
+  SteamAppId="$PROTON_APP_ID" \
+  "$proton_dir/proton" "$@"
+}
+
+run_with_proton() {
+  local proton_dir="$1"
+  shift
+
+  run_proton_command "$proton_dir" waitforexitandrun "$@"
+}
+
+ensure_proton_prefix() {
+  local proton_dir="$1"
+
+  mkdir -p "$COMPAT_DATA"
+
+  if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    return 0
+  fi
+
+  say "Creating Proton prefix: $COMPAT_DATA"
+  if ! run_proton_command "$proton_dir" run wineboot -u; then
+    say "First Proton prefix bootstrap command failed; trying Proton's waitforexit path..."
+    if ! run_proton_command "$proton_dir" waitforexitandrun wineboot -u; then
+      die "Proton could not bootstrap the prefix at $COMPAT_DATA."
+    fi
+  fi
+
+  if [[ ! -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    die "Proton did not create $COMPAT_DATA/pfx. If this is Skyrim's prefix, run Skyrim once in Steam, then rerun install.sh."
+  fi
 }
 
 install_vortex() {
@@ -436,6 +482,13 @@ main() {
   install_missing_packages
 
   STEAM_ROOT="$(find_steam_root)"
+  if is_flatpak_steam_root "$STEAM_ROOT"; then
+    if [[ "${ALLOW_FLATPAK_STEAM:-0}" != "1" ]]; then
+      die "Flatpak Steam was detected at $STEAM_ROOT, but this installer runs Proton from the host and cannot reliably use Flatpak's Steam runtime. Install the normal Steam package or set STEAM_ROOT to a native Steam install. Advanced users can retry with ALLOW_FLATPAK_STEAM=1."
+    fi
+    say "Warning: Flatpak Steam support is experimental because Proton may need to run inside the Flatpak runtime."
+  fi
+
   PROTON_DIR="$(choose_proton_dir "$STEAM_ROOT")"
   SKYRIM_SE_GAME_DIR=""
   SKYRIM_SE_LIBRARY_ROOT=""
@@ -445,6 +498,7 @@ main() {
     IFS=$'\t' read -r SKYRIM_SE_GAME_DIR SKYRIM_SE_LIBRARY_ROOT SKYRIM_SE_COMPAT_DATA <<<"$skyrim_info"
     if [[ "${VORTEX_STANDALONE_PREFIX:-0}" != "1" ]]; then
       COMPAT_DATA="$SKYRIM_SE_COMPAT_DATA"
+      PROTON_APP_ID="$SKYRIM_APP_ID"
     fi
   fi
 
@@ -457,6 +511,7 @@ main() {
 
   write_config "$STEAM_ROOT" "$PROTON_DIR"
   install_launcher
+  ensure_proton_prefix "$PROTON_DIR"
   install_vortex "$PROTON_DIR"
   write_desktop_files
   register_nxm_handler

@@ -11,7 +11,8 @@ The installer checks these Steam locations:
 - `~/.steam/root`
 - `~/.steam/steam`
 - `~/.local/share/Steam`
-- `~/.var/app/com.valvesoftware.Steam/.local/share/Steam`
+
+Flatpak Steam lives under `~/.var/app/com.valvesoftware.Steam`, but it is rejected by default. This wrapper runs Proton from the host, and Flatpak Steam usually needs Proton to run inside Flatpak's runtime. Use the normal Steam package for the easy path.
 
 If Steam lives somewhere else, run:
 
@@ -100,7 +101,7 @@ Re-register it with:
 xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm
 ```
 
-Normal mod links are sent to Vortex as downloads. Nexus collection links are sent to Vortex's install workflow.
+Normal mod links are sent to Vortex as native downloads. Nexus collection links are sent to Vortex's install workflow.
 
 Nexus Premium still controls whether collections can download automatically in bulk. Free accounts may still need to click through individual mod downloads in the collection flow.
 
@@ -113,7 +114,13 @@ proton-vortex api-key set
 proton-vortex api validate
 ```
 
-When an API key is configured, normal Nexus mod NXM links are parsed on Linux. The helper calls:
+Normal Nexus mod NXM links are passed to Vortex by default so Vortex keeps its own Nexus metadata. The Linux API path is opt-in:
+
+```bash
+PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
+```
+
+In that mode, normal Nexus mod NXM links are parsed on Linux. The helper calls:
 
 ```text
 GET /v1/users/validate
@@ -121,7 +128,7 @@ GET /v1/games/{game}/mods/{mod_id}/files/{file_id}
 GET /v1/games/{game}/mods/{mod_id}/files/{file_id}/download_link
 ```
 
-For free Nexus accounts, direct download links require the website-generated NXM `key` and `expires` query values. If the API call fails or no API key is configured, the wrapper falls back to Vortex's own NXM downloader.
+For free Nexus accounts, direct download links require the website-generated NXM `key` and `expires` query values. If the API call fails, no API key is configured, or `PROTON_VORTEX_API_NXM=1` is not set, the wrapper falls back to Vortex's own NXM downloader.
 
 Downloaded Nexus archives are stored under:
 

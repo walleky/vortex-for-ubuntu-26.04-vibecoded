@@ -39,7 +39,7 @@ If you are an AI assistant or maintainer:
 ## Requirements
 
 - Ubuntu 26.04 or another recent Linux distro
-- Steam installed
+- Steam installed from the normal Ubuntu/Valve package, not Flatpak
 - At least one Proton version installed in Steam
 - Skyrim Special Edition installed through Steam, for the Skyrim-specific automation
 - Internet access for the Vortex download
@@ -63,10 +63,11 @@ The installer will:
 1. Find Steam
 2. Find the best Proton install
 3. Download the latest Vortex installer from the official Nexus-Mods/Vortex GitHub releases
-4. Install Vortex silently into Skyrim SE's Proton prefix if Skyrim SE is found, otherwise into its own prefix
-5. Create desktop launchers
-6. Register `nxm://` links
-7. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found
+4. Create the Proton prefix if Steam has not created it yet
+5. Install Vortex silently into Skyrim SE's Proton prefix if Skyrim SE is found, otherwise into its own prefix
+6. Create desktop launchers
+7. Register `nxm://` links
+8. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found
 
 ## Use
 
@@ -80,7 +81,7 @@ For Nexus Mods:
 2. Click **Mod Manager Download**
 3. Accept the browser prompt to open the link with **Vortex NXM Handler**
 
-Without a Nexus API key, the handler passes the NXM link to Vortex, which uses Vortex's own login/session. With a Nexus API key configured, the Linux helper can call the Nexus API itself, download the archive, save a metadata sidecar, and hand the archive to Vortex for install.
+Normal Nexus mod NXM links are passed to Vortex's native downloader by default. That preserves Vortex's Nexus metadata, update tracking, dependencies, and collection behavior better than importing a local archive.
 
 For Nexus Collections:
 
@@ -95,7 +96,7 @@ Firefox may ask once which app should handle `nxm` links. Choose the Vortex hand
 
 ## Nexus API Key
 
-For the best Linux-side NXM handling:
+For API checks and advanced Linux-side download testing:
 
 ```bash
 proton-vortex api-key set
@@ -111,10 +112,16 @@ The key is stored at:
 with `0600` permissions. You can also avoid storing it and use:
 
 ```bash
-NEXUS_API_KEY=your_key proton-vortex 'nxm://...'
+NEXUS_API_KEY=your_key PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
 ```
 
-Free Nexus accounts still need the `key` and `expires` values inside a website-generated NXM link for direct API download links. Premium accounts can usually generate file download links directly through the API.
+By default, a configured API key does not replace Vortex's native NXM flow. To force Linux-side API download for a normal mod file, run:
+
+```bash
+PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
+```
+
+That mode downloads the archive to Linux, writes a metadata sidecar, and asks Vortex to import it through a `file:///Z:/...` URL. It is useful for testing and direct URL handling, but Vortex may track it less richly than a native NXM download. Free Nexus accounts still need the `key` and `expires` values inside a website-generated NXM link for direct API download links. Premium accounts can usually generate file download links directly through the API.
 
 ## Non-Nexus Mods
 
@@ -136,7 +143,7 @@ The helper downloads direct external archives into:
 ~/.local/share/proton-vortex/downloads/external
 ```
 
-Then it opens Vortex with the local archive. For pages that are not direct archive URLs, use the browser/manual download first, then import the downloaded archive.
+Then it opens Vortex with a Proton-readable `file:///Z:/...` archive URL. For pages that are not direct archive URLs, use the browser/manual download first, then import the downloaded archive.
 
 ## Commands
 
@@ -159,6 +166,8 @@ bash uninstall.sh
 - SKSE64 is installed directly into the Skyrim SE folder because that is the least fussy path: `skse64_loader.exe`, the SKSE DLLs, and the `Data` folder contents are copied where Skyrim expects them.
 - Non-Nexus archives often do not include Nexus metadata, so Vortex may not know the mod page/title automatically. The archive still installs through Vortex's normal installer pipeline.
 - Game mod deployment can still depend on the game and filesystem layout. Steam Proton games under normal Steam library folders are the target path here.
+- Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.
+- If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
 - The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
 

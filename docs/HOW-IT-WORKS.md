@@ -14,6 +14,7 @@ This project does the Linux desktop integration:
 - Finds Proton
 - Finds Skyrim Special Edition
 - Installs Vortex into the right Proton prefix
+- Creates the Proton prefix if it is missing
 - Registers `nxm://` browser links
 - Downloads SKSE64 and puts the files where Skyrim expects them
 - Imports local and external mod archives into Vortex
@@ -46,13 +47,14 @@ When Skyrim SE is found, this project installs/runs Vortex in that same prefix. 
 4. Finds Proton
 5. Looks for Steam Skyrim SE
 6. Chooses Skyrim SE's Proton prefix if Skyrim is installed
-7. Downloads the latest Vortex installer from GitHub
-8. Runs the Vortex installer through Proton
-9. Installs launcher scripts into `~/.local/bin`
-10. Installs helper scripts into `~/.local/share/proton-vortex`
-11. Creates desktop launchers
-12. Registers `nxm://` links
-13. Installs SKSE64 if Skyrim SE is found
+7. Creates the selected Proton prefix if it does not exist yet
+8. Downloads the latest Vortex installer from GitHub
+9. Runs the Vortex installer through Proton
+10. Installs launcher scripts into `~/.local/bin`
+11. Installs helper scripts into `~/.local/share/proton-vortex`
+12. Creates desktop launchers
+13. Registers `nxm://` links
+14. Installs SKSE64 if Skyrim SE is found
 
 ## What Happens When You Click A Nexus Mod Link
 
@@ -76,20 +78,30 @@ proton-vortex 'nxm://...'
 
 Then `proton-vortex` asks `mod-intake.py` what to do.
 
-For normal Nexus mod files:
-
-1. Parse the NXM URL
-2. If a Nexus API key is configured, ask the Nexus API for file metadata and download links
-3. Download the archive when allowed
-4. Save the archive under `~/.local/share/proton-vortex/downloads/nexus`
-5. Save a metadata sidecar next to the archive
-6. Open Vortex with `--install <archive>`
-
-If any of that fails, it falls back to:
+For normal Nexus mod files, the helper normally sends the original link to:
 
 ```text
 Vortex.exe --download nxm://...
 ```
+
+That keeps Vortex's native Nexus metadata, update tracking, dependencies, and collection behavior.
+
+Advanced Linux-side API download is opt-in:
+
+```bash
+PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
+```
+
+In that mode, the helper:
+
+1. Parses the NXM URL
+2. Asks the Nexus API for file metadata and download links
+3. Downloads the archive when allowed
+4. Saves the archive under `~/.local/share/proton-vortex/downloads/nexus`
+5. Saves a metadata sidecar next to the archive
+6. Opens Vortex with `--install file:///Z:/...`
+
+If the API path fails, it falls back to Vortex's native NXM downloader.
 
 For Nexus Collections, the helper sends the collection link straight to:
 
@@ -107,10 +119,10 @@ For a local archive:
 proton-vortex import ~/Downloads/mod.7z
 ```
 
-The helper checks that the file exists, converts the Linux path to a Proton `Z:\...` path, then runs:
+The helper checks that the file exists, converts the Linux path to a Proton-readable file URL, then runs:
 
 ```text
-Vortex.exe --install Z:\home\you\Downloads\mod.7z
+Vortex.exe --install file:///Z:/home/you/Downloads/mod.7z
 ```
 
 For a direct archive URL:

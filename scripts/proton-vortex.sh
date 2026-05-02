@@ -28,9 +28,16 @@ load_config() {
   if [[ -z "${STEAM_ROOT:-}" || -z "${PROTON_DIR:-}" || -z "${COMPAT_DATA:-}" ]]; then
     die "Config is incomplete. Rerun install.sh."
   fi
+  PROTON_APP_ID="${PROTON_APP_ID:-0}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
     die "Proton executable not found at $PROTON_DIR/proton. Rerun install.sh or update $CONFIG_FILE."
+  fi
+}
+
+require_prefix() {
+  if [[ ! -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    die "No Proton prefix found at $COMPAT_DATA/pfx. Rerun install.sh so it can create the prefix, or run Skyrim once in Steam if you want to use Skyrim's own prefix."
   fi
 }
 
@@ -62,27 +69,16 @@ run_vortex() {
 
   STEAM_COMPAT_DATA_PATH="$COMPAT_DATA" \
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
+  STEAM_COMPAT_APP_ID="$PROTON_APP_ID" \
+  SteamAppId="$PROTON_APP_ID" \
   "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "$@"
-}
-
-to_wine_path() {
-  local value="$1"
-
-  case "$value" in
-    /*)
-      value="${value//\//\\}"
-      printf 'Z:%s\n' "$value"
-      ;;
-    *)
-      printf '%s\n' "$value"
-      ;;
-  esac
 }
 
 run_intake() {
   local vortex_exe="$1"
   local value="$2"
   local resolved=()
+  local resolved_file
   local mode
   local payload
 
@@ -90,13 +86,21 @@ run_intake() {
     die "Mod intake helper not found at $INTAKE_HELPER. Rerun install.sh."
   fi
 
-  mapfile -t resolved < <(python3 "$INTAKE_HELPER" resolve "$value")
-  mode="${resolved[0]:-raw}"
+  resolved_file="$(mktemp "${TMPDIR:-/tmp}/proton-vortex-intake.XXXXXX")" || die "Could not create a temporary intake file."
+  if ! python3 "$INTAKE_HELPER" resolve "$value" >"$resolved_file"; then
+    rm -f "$resolved_file"
+    die "Mod intake failed for: $value"
+  fi
+  mapfile -t resolved <"$resolved_file"
+  rm -f "$resolved_file"
+
+  mode="${resolved[0]:-}"
   payload="${resolved[1]:-$value}"
+  [[ -n "$mode" ]] || die "Mod intake returned no action for: $value"
 
   case "$mode" in
-    install)
-      run_vortex "$vortex_exe" --install "$(to_wine_path "$payload")"
+    install|install-url)
+      run_vortex "$vortex_exe" --install "$payload"
       ;;
     download)
       run_vortex "$vortex_exe" --download "$payload"
@@ -120,6 +124,12 @@ print_info() {
   say "  steam root:    $STEAM_ROOT"
   say "  proton:        $PROTON_DIR"
   say "  compat data:   $COMPAT_DATA"
+  if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    say "  prefix:        ready"
+  else
+    say "  prefix:        missing ($COMPAT_DATA/pfx)"
+  fi
+  say "  proton app id: ${PROTON_APP_ID:-0}"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
 
@@ -150,8 +160,10 @@ Usage:
   proton-vortex --install 'nxm://...'
   proton-vortex --print-info
 
-The intake layer can download Nexus NXM files through the Nexus API when a key
-is configured. Collections still go straight to Vortex's collection workflow.
+Normal Nexus NXM files are sent to Vortex's native downloader by default so
+Vortex keeps Nexus metadata. Set PROTON_VORTEX_API_NXM=1 to force Linux-side
+API download for normal mod files. Collections still go straight to Vortex's
+collection workflow.
 EOF_HELP
       return 0
       ;;
@@ -168,6 +180,7 @@ EOF_HELP
   esac
 
   local vortex_exe
+  require_prefix
   vortex_exe="$(find_vortex_exe || true)"
   if [[ -z "$vortex_exe" ]]; then
     die "Vortex.exe was not found in $COMPAT_DATA. Rerun install.sh."

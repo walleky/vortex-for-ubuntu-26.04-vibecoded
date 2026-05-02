@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import sys
-import tempfile
 import time
 import urllib.error
 import urllib.parse
@@ -96,9 +95,11 @@ def api_headers(api_key: str | None = None) -> dict[str, str]:
         "Accept": "application/json",
         "Application-Name": APP_NAME,
         "Application-Version": APP_VERSION,
-        "Protocol-Version": "1.0.0",
         "User-Agent": f"{APP_NAME}/{APP_VERSION} Linux",
     }
+    protocol_version = os.environ.get("NEXUS_PROTOCOL_VERSION", "").strip()
+    if protocol_version:
+        headers["Protocol-Version"] = protocol_version
     if api_key:
         headers["APIKEY"] = api_key
     return headers
@@ -245,6 +246,18 @@ def looks_like_archive(path_or_url: str) -> bool:
     return any(lowered.endswith(ext) for ext in ARCHIVE_EXTENSIONS)
 
 
+def env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def linux_path_to_vortex_file_url(path: Path) -> str:
+    resolved = path.expanduser().resolve()
+    if not resolved.is_absolute():
+        die(f"Expected an absolute path, got: {path}")
+    windows_path = "Z:" + resolved.as_posix()
+    return "file:///" + urllib.parse.quote(windows_path, safe="/:")
+
+
 def unique_path(directory: Path, filename: str) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     target = directory / filename
@@ -354,9 +367,15 @@ def resolve_nxm(url: str) -> None:
         action("install", url)
         return
 
+    if not env_truthy("PROTON_VORTEX_API_NXM"):
+        warn("Passing Nexus mod NXM to Vortex's native downloader to preserve Nexus metadata.")
+        warn("Set PROTON_VORTEX_API_NXM=1 to force Linux-side API download for normal mod files.")
+        action("download", url)
+        return
+
     api_key = read_api_key(required=False)
     if not api_key:
-        warn("No Nexus API key configured; passing NXM URL to Vortex's own downloader.")
+        warn("No Nexus API key configured; passing NXM URL to Vortex's native downloader.")
         action("download", url)
         return
 
@@ -384,10 +403,10 @@ def resolve_nxm(url: str) -> None:
                 "file_info": info,
             },
         )
-        action("install", str(archive.resolve()))
+        action("install-url", linux_path_to_vortex_file_url(archive))
     except ApiError as exc:
         warn(f"Nexus API download failed: {exc}")
-        warn("Falling back to Vortex's own NXM downloader.")
+        warn("Falling back to Vortex's native NXM downloader.")
         action("download", url)
 
 
@@ -403,7 +422,7 @@ def resolve_http(url: str) -> None:
                 "downloaded_at": int(time.time()),
             },
         )
-        action("install", str(archive.resolve()))
+        action("install-url", linux_path_to_vortex_file_url(archive))
     except ApiError as exc:
         warn(f"External download failed: {exc}")
         warn("Passing URL to Vortex instead.")
@@ -424,7 +443,7 @@ def resolve_file(value: str) -> None:
     if not looks_like_archive(path.name):
         warn("File does not have a common mod archive extension; passing it to Vortex anyway.")
 
-    action("install", str(path.resolve()))
+    action("install-url", linux_path_to_vortex_file_url(path))
 
 
 def resolve(value: str) -> None:

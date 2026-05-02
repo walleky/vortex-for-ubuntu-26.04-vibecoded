@@ -19,7 +19,7 @@ It also handles the annoying parts:
 You need:
 
 - Ubuntu 26.04
-- Steam installed
+- Steam installed from the normal Steam package, not Flatpak
 - Skyrim Special Edition installed in Steam
 - Proton installed in Steam
 - Internet access
@@ -75,9 +75,15 @@ Paste your Nexus Mods personal API key when asked.
 
 What this does:
 
-- Lets Linux download normal Nexus mod archives directly when allowed
-- Saves metadata beside downloaded files
+- Lets you test the Nexus API from Linux
+- Lets Linux download normal Nexus mod archives directly if you explicitly turn that mode on
 - Falls back to Vortex automatically if Nexus refuses direct API download
+
+The normal no-hassle mode still sends Nexus mod links to Vortex directly because Vortex keeps better Nexus metadata that way. API download mode is for advanced testing:
+
+```bash
+PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
+```
 
 It does not bypass Nexus limits. Free Nexus accounts still need normal website-generated links for some downloads.
 
@@ -90,10 +96,7 @@ On a Nexus mod page:
 3. Pick **Vortex NXM Handler**
 4. Make it the default if your browser asks
 
-The helper will either:
-
-- Download the archive on Linux and hand it to Vortex
-- Or pass the original `nxm://` link to Vortex if that is the better/allowed path
+The helper passes the original `nxm://` link to Vortex. That is the best default because Vortex keeps Nexus update tracking, requirements, and collection metadata.
 
 ## Install Nexus Collections
 
@@ -171,6 +174,7 @@ Common fixes:
 
 - If Nexus links do nothing, set **Vortex NXM Handler** as the default in your browser
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
+- If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
 - If collections are not automatic, check whether you are using a free Nexus account
 - If a non-Nexus mod is a folder, zip it first

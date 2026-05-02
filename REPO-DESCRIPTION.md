@@ -8,7 +8,7 @@ It handles:
 - Skyrim SE Proton prefix detection
 - SKSE64 install and launch
 - `nxm://` browser links
-- Nexus Mods API-assisted downloads
+- optional Nexus Mods API-assisted downloads
 - Nexus Collections handoff to Vortex
 - Non-Nexus archive imports
 
