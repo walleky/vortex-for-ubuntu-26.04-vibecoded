@@ -207,6 +207,104 @@ vortex_prepared_downloads_dir() {
   printf '%s\n' "${VORTEX_DOWNLOADS_DIR:-$base/downloads}"
 }
 
+skyrim_runtime_version() {
+  local exe="$1"
+
+  [[ -f "$exe" ]] || return 1
+  python3 - "$exe" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+data = Path(sys.argv[1]).read_bytes()
+keys = ("ProductVersion", "FileVersion")
+
+for key in keys:
+    needle = key.encode("utf-16le")
+    start = 0
+    while True:
+        idx = data.find(needle, start)
+        if idx == -1:
+            break
+        chunk = data[idx:idx + 512]
+        try:
+            text = chunk.decode("utf-16le", errors="ignore")
+        except Exception:
+            start = idx + len(needle)
+            continue
+        parts = [part.strip() for part in text.split("\x00") if part.strip()]
+        try:
+            key_index = parts.index(key)
+        except ValueError:
+            key_index = 0
+        for part in parts[key_index + 1:]:
+            match = re.search(r"\b(\d+\.\d+\.\d+(?:\.\d+)?)\b", part)
+            if match:
+                print(match.group(1))
+                raise SystemExit(0)
+        start = idx + len(needle)
+
+raise SystemExit(1)
+PY
+}
+
+recommended_skse_flavor() {
+  local game_dir="$1"
+  local runtime="${2:-}"
+
+  if [[ -z "$runtime" ]]; then
+    runtime="$(skyrim_runtime_version "$game_dir/SkyrimSE.exe" 2>/dev/null || true)"
+  fi
+
+  case "$runtime" in
+    1.5.97|1.5.97.*)
+      printf '%s\n' "se"
+      ;;
+    1.6.1179|1.6.1179.*)
+      printf '%s\n' "gog"
+      ;;
+    1.6.*)
+      printf '%s\n' "ae"
+      ;;
+    *)
+      printf '%s\n' "ae"
+      ;;
+  esac
+}
+
+skse_flavor_label() {
+  case "$1" in
+    se)
+      printf '%s\n' "Special Edition SKSE 2.0.20 for SkyrimSE.exe 1.5.97"
+      ;;
+    ae)
+      printf '%s\n' "Anniversary Edition SKSE for Steam SkyrimSE.exe 1.6.x"
+      ;;
+    gog)
+      printf '%s\n' "GOG Anniversary Edition SKSE for SkyrimSE.exe 1.6.1179"
+      ;;
+    vr)
+      printf '%s\n' "VR SKSE"
+      ;;
+    *)
+      printf '%s\n' "$1"
+      ;;
+  esac
+}
+
+expected_skse_runtime_dll() {
+  local runtime="$1"
+  local runtime_base
+
+  [[ -n "$runtime" ]] || return 1
+  runtime_base="$runtime"
+  if [[ "$runtime_base" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.0$ ]]; then
+    runtime_base="${BASH_REMATCH[1]}"
+  fi
+
+  printf 'skse64_%s.dll\n' "${runtime_base//./_}"
+}
+
 update_config_value() {
   local key="$1"
   local value="$2"
@@ -541,6 +639,57 @@ extract_skse() {
   esac
 }
 
+archive_contains_basename() {
+  local archive="$1"
+  local wanted="$2"
+  local extractor
+
+  extractor="$(extractor_command)"
+  [[ -n "$extractor" ]] || die "No extractor command available."
+
+  case "$extractor" in
+    7zz|7z)
+      "$extractor" l -ba "$archive" 2>/dev/null
+      ;;
+    bsdtar)
+      bsdtar -tf "$archive" 2>/dev/null
+      ;;
+    *)
+      die "Unsupported extractor: $extractor"
+      ;;
+  esac | awk -v wanted="$wanted" '
+    {
+      line = $0
+      gsub(/\\/, "/", line)
+      n = split(line, parts, "/")
+      tail = parts[n]
+      split(tail, fields, /[[:space:]]+/)
+      if (tail == wanted || fields[length(fields)] == wanted) {
+        found = 1
+      }
+    }
+    END {
+      exit(found ? 0 : 1)
+    }
+  '
+}
+
+validate_skse_archive_for_runtime() {
+  local archive="$1"
+  local runtime="$2"
+  local expected_dll
+
+  [[ -n "$runtime" ]] || return 0
+  expected_dll="$(expected_skse_runtime_dll "$runtime")" || return 0
+
+  if archive_contains_basename "$archive" "$expected_dll"; then
+    say "SKSE archive matches Skyrim runtime: $expected_dll"
+    return 0
+  fi
+
+  die "Downloaded SKSE archive does not contain $expected_dll for SkyrimSE.exe runtime $runtime. Your game runtime and SKSE flavor do not match; run proton-vortex-skyrim-se diagnose, then retry with the right SKSE_FLAVOR or update/downgrade Skyrim to a supported runtime."
+}
+
 install_skse_files() {
   local archive="$1"
   local game_dir="$2"
@@ -566,11 +715,31 @@ install_skse_files() {
 
 skse_status() {
   local game_dir="$1"
+  local runtime
+  local expected_dll
+  local flavor
 
   if [[ -f "$game_dir/skse64_loader.exe" ]]; then
     say "SKSE loader: $game_dir/skse64_loader.exe"
   else
     say "SKSE loader: not installed"
+  fi
+
+  runtime="$(skyrim_runtime_version "$game_dir/SkyrimSE.exe" 2>/dev/null || true)"
+  if [[ -n "$runtime" ]]; then
+    flavor="$(recommended_skse_flavor "$game_dir" "$runtime")"
+    say "Skyrim runtime: $runtime"
+    say "Recommended SKSE: $flavor ($(skse_flavor_label "$flavor"))"
+    expected_dll="$(expected_skse_runtime_dll "$runtime")"
+    if [[ -f "$game_dir/$expected_dll" ]]; then
+      say "SKSE runtime dll: $expected_dll"
+    else
+      say "SKSE runtime dll: missing $expected_dll"
+      say "Fix: run proton-vortex-skyrim-se install-skse"
+    fi
+  else
+    say "Skyrim runtime: unknown"
+    say "Recommended SKSE: ae fallback unless you know this is downgraded SkyrimSE.exe 1.5.97"
   fi
 
   find "$game_dir" -maxdepth 1 -type f -name 'skse64_*.dll' -printf 'SKSE dll:    %f\n' 2>/dev/null | sort || true
@@ -1015,13 +1184,27 @@ audio_fix() {
 }
 
 install_skse() {
-  local flavor="${SKSE_FLAVOR:-ae}"
+  local flavor="${SKSE_FLAVOR:-}"
   local game_dir
   local archive
+  local runtime
 
   game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam. Install it in Steam, run it once, then rerun this command."
+  runtime="$(skyrim_runtime_version "$game_dir/SkyrimSE.exe" 2>/dev/null || true)"
+  if [[ -z "$flavor" || "$flavor" == "auto" ]]; then
+    flavor="$(recommended_skse_flavor "$game_dir" "$runtime")"
+  fi
+
+  if [[ -n "$runtime" ]]; then
+    say "Detected SkyrimSE.exe runtime: $runtime"
+  else
+    say "Warning: could not detect SkyrimSE.exe runtime; defaulting SKSE flavor to '$flavor'."
+  fi
+  say "Using SKSE flavor: $flavor ($(skse_flavor_label "$flavor"))"
+
   install_extractor_if_needed
   archive="$(download_skse "$flavor")"
+  validate_skse_archive_for_runtime "$archive" "$runtime"
   install_skse_files "$archive" "$game_dir"
 
   say "Installed SKSE64 ($flavor) into:"
@@ -1119,8 +1302,10 @@ Usage:
   proton-vortex-skyrim-se audio-fix
 
 Environment:
-  SKSE_FLAVOR=ae   Latest Steam Skyrim SE / AE executable, currently 1.6.1170
-  SKSE_FLAVOR=se   Downgraded Steam executable 1.5.97
+  SKSE_FLAVOR=auto Default behavior; detect SkyrimSE.exe runtime
+  SKSE_FLAVOR=ae   Steam Skyrim SE / AE executable 1.6.x
+  SKSE_FLAVOR=se   Downgraded Steam executable 1.5.97; SKSE 2.0.20
+  SKSE_FLAVOR=gog  GOG executable 1.6.1179
 EOF_HELP
 }
 

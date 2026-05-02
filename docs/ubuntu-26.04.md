@@ -278,13 +278,15 @@ proton-vortex-skyrim-se launch-skse
 proton-vortex-skyrim-se diagnose
 ```
 
-For a current Steam install, use the default:
+The helper detects your `SkyrimSE.exe` runtime before installing SKSE. Runtime `1.5.97` uses SKSE flavor `se`, which is SKSE `2.0.20`. Steam `1.6.x` uses the AE SKSE line. It verifies that the archive contains the DLL for your detected runtime before copying files into the game folder.
+
+Normal command:
 
 ```bash
 proton-vortex-skyrim-se install-skse
 ```
 
-For a deliberately downgraded `1.5.97` install:
+Manual override for a deliberately downgraded `1.5.97` install:
 
 ```bash
 SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse

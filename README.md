@@ -219,7 +219,7 @@ bash uninstall.sh
 - If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.
 - If Vortex gets choppy while downloading many mods, try `PROTON_VORTEX_PERFORMANCE=1 proton-vortex`, reduce Vortex parallel downloads to 1-2, and keep the download/staging folders on a fast local SSD.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
-- The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
+- The SKSE helper detects `SkyrimSE.exe` runtime before installing SKSE. Runtime `1.5.97` gets SKSE flavor `se` / SKSE `2.0.20`; Steam `1.6.x` gets the AE SKSE line. Before copying files, it checks that the downloaded SKSE archive contains the DLL for your game runtime, so a mismatched SKSE build fails loudly instead of half-installing. You can still override with `SKSE_FLAVOR=se` or `SKSE_FLAVOR=ae`.
 
 ## Sources
 

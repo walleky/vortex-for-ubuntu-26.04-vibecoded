@@ -294,7 +294,15 @@ If it says voice archives are present, try:
 proton-vortex-skyrim-se audio-fix
 ```
 
-For current Steam Skyrim Special Edition, use the default SKSE install. If you intentionally downgraded Skyrim to `1.5.97`, run:
+The helper now detects your `SkyrimSE.exe` runtime before installing SKSE. If your game is downgraded to `1.5.97`, it uses SKSE flavor `se`, which is SKSE `2.0.20`. If your game is Steam `1.6.x`, it uses the AE SKSE line. It also checks the downloaded archive before copying files, so the wrong SKSE build should stop with a clear error instead of leaving a broken half-install.
+
+Normal command:
+
+```bash
+proton-vortex-skyrim-se install-skse
+```
+
+Manual override for downgraded Skyrim:
 
 ```bash
 SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse

@@ -858,7 +858,8 @@ setup_skyrim_se() {
 
   if [[ -f "$SKYRIM_SE_GAME_DIR/skse64_loader.exe" && "${SKSE_AUTO_UPDATE:-0}" != "1" ]]; then
     say "SKSE64 already exists in Skyrim SE; leaving it alone during wrapper update."
-    say "To update SKSE64 later, run: proton-vortex-skyrim-se install-skse"
+    say "To update or repair SKSE64 later, run: proton-vortex-skyrim-se install-skse"
+    say "That command now detects SkyrimSE.exe runtime; 1.5.97 uses SKSE 2.0.20."
     say "To force SKSE64 during install, run: SKSE_AUTO_UPDATE=1 bash install.sh"
     return 0
   fi

@@ -265,7 +265,13 @@ Default:
 proton-vortex-skyrim-se install-skse
 ```
 
-uses `SKSE_FLAVOR=ae`, which is correct for current Steam Skyrim SE executable `1.6.1170`.
+detects `SkyrimSE.exe` runtime and chooses the SKSE flavor automatically:
+
+- `1.5.97` -> `SKSE_FLAVOR=se`, SKSE `2.0.20`
+- `1.6.1170` Steam -> `SKSE_FLAVOR=ae`
+- `1.6.1179` GOG -> `SKSE_FLAVOR=gog`
+
+After downloading the SKSE archive, `validate_skse_archive_for_runtime` checks for the expected runtime DLL such as `skse64_1_5_97.dll` before anything is copied into the game folder. That protects downgraded `1.5.97` installs from accidentally receiving the current AE files.
 
 Downgraded Skyrim:
 
