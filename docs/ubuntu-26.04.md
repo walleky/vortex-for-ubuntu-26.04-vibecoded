@@ -60,6 +60,30 @@ That gives Vortex, SKSE, and Skyrim the same Windows environment. If you prefer 
 VORTEX_STANDALONE_PREFIX=1 bash install.sh
 ```
 
+When Skyrim SE is found, the launcher records Vortex game id `skyrimse` and uses it for plain Vortex launches.
+
+## Vortex UI Scale
+
+The installer sets Windows DPI inside the Proton prefix to `120` so Vortex is less tiny on Ubuntu high-DPI desktops.
+
+For bigger UI:
+
+```bash
+PROTON_VORTEX_DPI=144 bash install.sh
+```
+
+To disable the DPI tweak:
+
+```bash
+PROTON_VORTEX_DPI=0 bash install.sh
+```
+
+If Vortex is blank or very choppy, try disabling Electron GPU acceleration for Vortex:
+
+```bash
+PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
+```
+
 ## SKSE64
 
 The installer adds:

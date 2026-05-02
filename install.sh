@@ -5,6 +5,7 @@ IFS=$'\n\t'
 APP_ID="proton-vortex"
 APP_NAME="Vortex (Proton)"
 SKYRIM_APP_ID="489830"
+SKYRIM_VORTEX_GAME_ID="skyrimse"
 GITHUB_API="https://api.github.com/repos/Nexus-Mods/Vortex/releases/latest"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -18,6 +19,8 @@ CONFIG_FILE="$APP_HOME/config.env"
 APP_COMPAT_DATA="$APP_HOME/compatdata"
 COMPAT_DATA="$APP_COMPAT_DATA"
 PROTON_APP_ID="${PROTON_APP_ID:-$SKYRIM_APP_ID}"
+PROTON_VORTEX_DPI="${PROTON_VORTEX_DPI:-120}"
+VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
 LAUNCHER="$BIN_HOME/proton-vortex"
 SKYRIM_HELPER="$BIN_HOME/proton-vortex-skyrim-se"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
@@ -351,6 +354,8 @@ SKYRIM_SE_GAME_DIR=$(printf '%q' "${SKYRIM_SE_GAME_DIR:-}")
 SKYRIM_SE_LIBRARY_ROOT=$(printf '%q' "${SKYRIM_SE_LIBRARY_ROOT:-}")
 SKYRIM_SE_COMPAT_DATA=$(printf '%q' "${SKYRIM_SE_COMPAT_DATA:-}")
 PROTON_APP_ID=$(printf '%q' "$PROTON_APP_ID")
+PROTON_VORTEX_DPI=$(printf '%q' "$PROTON_VORTEX_DPI")
+VORTEX_GAME_ID=$(printf '%q' "${VORTEX_GAME_ID:-}")
 EOF_CONFIG
 }
 
@@ -521,6 +526,22 @@ ensure_proton_prefix() {
   fi
 }
 
+configure_prefix_ui() {
+  local proton_dir="$1"
+
+  if [[ "${PROTON_VORTEX_DPI:-0}" == "0" ]]; then
+    return 0
+  fi
+
+  say "Setting Windows DPI scale for Vortex UI: $PROTON_VORTEX_DPI"
+  if ! run_proton_command "$proton_dir" run reg add 'HKCU\Control Panel\Desktop' /v Win8DpiScaling /t REG_DWORD /d 1 /f >/dev/null; then
+    say "Warning: could not set Win8DpiScaling in the Proton prefix."
+  fi
+  if ! run_proton_command "$proton_dir" run reg add 'HKCU\Control Panel\Desktop' /v LogPixels /t REG_DWORD /d "$PROTON_VORTEX_DPI" /f >/dev/null; then
+    say "Warning: could not set DPI scale in the Proton prefix."
+  fi
+}
+
 install_vortex() {
   local proton_dir="$1"
   local installer
@@ -571,6 +592,7 @@ main() {
     if [[ "${VORTEX_STANDALONE_PREFIX:-0}" != "1" ]]; then
       COMPAT_DATA="$SKYRIM_SE_COMPAT_DATA"
       PROTON_APP_ID="$SKYRIM_APP_ID"
+      VORTEX_GAME_ID="${VORTEX_GAME_ID:-$SKYRIM_VORTEX_GAME_ID}"
     fi
   fi
 
@@ -584,6 +606,7 @@ main() {
   write_config "$STEAM_ROOT" "$PROTON_DIR"
   install_launcher
   ensure_proton_prefix "$PROTON_DIR"
+  configure_prefix_ui "$PROTON_DIR"
   install_vortex "$PROTON_DIR"
   write_desktop_files
   register_nxm_handler

@@ -24,6 +24,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Rejects Flatpak Steam by default because host Proton cannot reliably use Flatpak's runtime
 - Prefers Proton Experimental/newest official Steam Proton before GE-Proton, unless `PROTON_PREFER_GE=1` or `PROTON_PATH` is set
 - Bootstraps the selected Proton prefix before Vortex install
+- Writes Vortex UI DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
@@ -35,6 +36,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Main launcher installed as `~/.local/bin/proton-vortex`
 - Loads `~/.local/share/proton-vortex/config.env`
 - Finds `Vortex.exe`
+- Launches plain Vortex with `--game skyrimse` when Skyrim SE was detected
 - Delegates NXM/URL/archive intake to `mod-intake.py`
 - Passes local archives to Vortex as Proton-readable `file:///Z:/...` URLs
 - Runs Vortex through Proton

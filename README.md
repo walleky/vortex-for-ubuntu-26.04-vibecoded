@@ -25,6 +25,7 @@ If you are an AI assistant or maintainer:
 
 - Vortex installed into a Proton prefix managed by this bundle
 - If Steam Skyrim Special Edition is installed, Vortex uses Skyrim SE's Proton prefix by default
+- If Steam Skyrim Special Edition is found, plain Vortex launches with Vortex game id `skyrimse`
 - Automatic SKSE64 install/update helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
@@ -145,6 +146,8 @@ bash uninstall.sh
 - Game mod deployment can still depend on the game and filesystem layout. Steam Proton games under normal Steam library folders are the target path here.
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.
 - If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
+- The installer sets the Proton prefix Windows DPI to `120` percent-ish scaling so Vortex is not tiny on high-DPI Ubuntu desktops. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
+- If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
 - The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
 

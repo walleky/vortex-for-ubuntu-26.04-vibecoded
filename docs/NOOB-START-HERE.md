@@ -35,6 +35,18 @@ Do this once in Steam:
 
 The installer will pick Proton Experimental or the newest official Steam Proton it can find. It should not choose an old GE-Proton 9 just because that happens to be installed.
 
+If Vortex looks tiny, rerun:
+
+```bash
+PROTON_VORTEX_DPI=144 bash install.sh
+```
+
+If Vortex is choppy or blank, try:
+
+```bash
+PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
+```
+
 ## Install
 
 Open a terminal in this folder and run:
@@ -154,6 +166,7 @@ bash scripts/diagnose.sh
 Common fixes:
 
 - If Nexus links do nothing, set **Vortex NXM Handler** as the default in your browser
+- If you are unsure Skyrim was detected, run `bash scripts/diagnose.sh` and look for `Skyrim SE detected`
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`

@@ -69,6 +69,19 @@ if [[ -r "$CONFIG_FILE" ]]; then
       warn "Fix: rerun bash install.sh. If this is Skyrim's prefix, launching Skyrim once from Steam also creates it."
     fi
   fi
+  if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -f "$SKYRIM_SE_GAME_DIR/SkyrimSE.exe" ]]; then
+    ok "Skyrim SE detected: $SKYRIM_SE_GAME_DIR"
+  else
+    warn "Skyrim SE was not recorded in config. Rerun bash install.sh after installing Skyrim SE in Steam."
+  fi
+  if [[ -n "${VORTEX_GAME_ID:-}" ]]; then
+    ok "Vortex game id: $VORTEX_GAME_ID"
+  else
+    warn "Vortex game id is not forced. Expected skyrimse when Skyrim SE is detected."
+  fi
+  if [[ -n "${PROTON_VORTEX_DPI:-}" ]]; then
+    ok "Vortex UI DPI setting: $PROTON_VORTEX_DPI"
+  fi
 fi
 
 if [[ -x "$LAUNCHER" ]]; then

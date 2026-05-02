@@ -29,6 +29,8 @@ load_config() {
     die "Config is incomplete. Rerun install.sh."
   fi
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
+  VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
+  PROTON_VORTEX_DISABLE_GPU="${PROTON_VORTEX_DISABLE_GPU:-0}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
     die "Proton executable not found at $PROTON_DIR/proton. Rerun install.sh or update $CONFIG_FILE."
@@ -66,12 +68,17 @@ find_vortex_exe() {
 run_vortex() {
   local vortex_exe="$1"
   shift
+  local electron_flags=()
+
+  if [[ "$PROTON_VORTEX_DISABLE_GPU" == "1" ]]; then
+    electron_flags+=(--disable-gpu --disable-gpu-compositing)
+  fi
 
   STEAM_COMPAT_DATA_PATH="$COMPAT_DATA" \
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
   STEAM_COMPAT_APP_ID="$PROTON_APP_ID" \
   SteamAppId="$PROTON_APP_ID" \
-  "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "$@"
+  "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "${electron_flags[@]}" "$@"
 }
 
 run_intake() {
@@ -124,12 +131,15 @@ print_info() {
   say "  steam root:    $STEAM_ROOT"
   say "  proton:        $PROTON_DIR"
   say "  compat data:   $COMPAT_DATA"
+  say "  skyrim dir:    ${SKYRIM_SE_GAME_DIR:-not detected}"
+  say "  vortex game:   ${VORTEX_GAME_ID:-not forced}"
   if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
     say "  prefix:        ready"
   else
     say "  prefix:        missing ($COMPAT_DATA/pfx)"
   fi
   say "  proton app id: ${PROTON_APP_ID:-0}"
+  say "  disable gpu:   $PROTON_VORTEX_DISABLE_GPU"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
 
@@ -192,7 +202,11 @@ EOF_HELP
     return 0
   fi
 
-  run_vortex "$vortex_exe" "$@"
+  if [[ $# -eq 0 && -n "$VORTEX_GAME_ID" ]]; then
+    run_vortex "$vortex_exe" --game "$VORTEX_GAME_ID"
+  else
+    run_vortex "$vortex_exe" "$@"
+  fi
 }
 
 main "$@"
