@@ -203,6 +203,8 @@ Vortex dock action: Launch Skyrim SE SKSE
 C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
 ```
 
+`proton-vortex-skyrim-se fix-skse-launcher` also writes `Launch Skyrim SE SKSE.bat` inside the Skyrim folder. That batch file changes directory to its own location before starting `skse64_loader.exe`, which avoids Vortex's common "could not find SkyrimSE.exe" working-directory problem.
+
 To verify SKSE, launch with the helper, open Skyrim's console, and run:
 
 ```text

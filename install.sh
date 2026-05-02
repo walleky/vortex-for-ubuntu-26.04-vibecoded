@@ -722,8 +722,43 @@ write_skse_launcher_bat() {
 
   cat >"$file" <<EOF_BAT
 @echo off
-cd /d "$game_win"
-start "" "skse64_loader.exe"
+set "GAME_DIR=$game_win"
+cd /d "%GAME_DIR%"
+if not exist "SkyrimSE.exe" (
+  echo SkyrimSE.exe was not found in %CD%
+  echo Vortex is launching SKSE from the wrong game folder.
+  pause
+  exit /b 1
+)
+if not exist "skse64_loader.exe" (
+  echo skse64_loader.exe was not found in %CD%
+  echo Run proton-vortex-skyrim-se install-skse, then try again.
+  pause
+  exit /b 1
+)
+start "" "%GAME_DIR%\\skse64_loader.exe"
+EOF_BAT
+}
+
+write_skse_game_launcher_bat() {
+  local file="$1"
+
+  cat >"$file" <<'EOF_BAT'
+@echo off
+cd /d "%~dp0"
+if not exist "SkyrimSE.exe" (
+  echo SkyrimSE.exe was not found in %CD%
+  echo This batch file must live in the Skyrim Special Edition game folder.
+  pause
+  exit /b 1
+)
+if not exist "skse64_loader.exe" (
+  echo skse64_loader.exe was not found in %CD%
+  echo Run proton-vortex-skyrim-se install-skse, then try again.
+  pause
+  exit /b 1
+)
+start "" "%~dp0skse64_loader.exe"
 EOF_BAT
 }
 
@@ -753,6 +788,7 @@ create_vortex_picker_helpers() {
     write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
+    write_skse_game_launcher_bat "$game_dir/Launch Skyrim SE SKSE.bat"
   done < <(prefix_user_dirs "$pfx")
 }
 

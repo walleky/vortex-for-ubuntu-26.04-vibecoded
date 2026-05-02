@@ -181,6 +181,7 @@ proton-vortex self-update
 proton-vortex repair-vortex
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se fix-skse-launcher
 proton-vortex-skyrim-se fix-staging
 bash scripts/diagnose.sh
 bash uninstall.sh
@@ -195,6 +196,7 @@ bash uninstall.sh
 - SKSE64 is installed directly into the Skyrim SE folder because that is the least fussy path: `skse64_loader.exe`, the SKSE DLLs, and the `Data` folder contents are copied where Skyrim expects them.
 - Best launch path for modded play is `proton-vortex-skyrim-se launch-skse` or the **Skyrim SE SKSE (Proton)** app icon. Use Steam for first-run setup/unmodded launching, and Vortex for managing/deploying mods.
 - To verify SKSE, launch through the helper, open Skyrim's console with `~`, and run `getskseversion`.
+- If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run `proton-vortex-skyrim-se fix-skse-launcher`, then set Vortex's SKSE tool target to the printed `Launch Skyrim SE SKSE.bat` path.
 - Updates from this repo do not delete Vortex mods, collections, or downloaded archives. They replace wrapper scripts, desktop files, and icons while reusing the same Proton prefix and app data.
 - Wrapper updates do not reinstall SKSE64 if `skse64_loader.exe` already exists. Run `proton-vortex-skyrim-se install-skse` when you want to update SKSE, or run `SKSE_AUTO_UPDATE=1 bash install.sh` to force it during install.
 - Vortex log files use unique names and old logs are pruned automatically. Set `PROTON_VORTEX_LOG_KEEP=60` if you want to keep more than 30 runs.

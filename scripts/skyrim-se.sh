@@ -333,8 +333,43 @@ write_skse_launcher_bat() {
 
   cat >"$file" <<EOF_BAT
 @echo off
-cd /d "$game_win"
-start "" "skse64_loader.exe"
+set "GAME_DIR=$game_win"
+cd /d "%GAME_DIR%"
+if not exist "SkyrimSE.exe" (
+  echo SkyrimSE.exe was not found in %CD%
+  echo Vortex is launching SKSE from the wrong game folder.
+  pause
+  exit /b 1
+)
+if not exist "skse64_loader.exe" (
+  echo skse64_loader.exe was not found in %CD%
+  echo Run proton-vortex-skyrim-se install-skse, then try again.
+  pause
+  exit /b 1
+)
+start "" "%GAME_DIR%\\skse64_loader.exe"
+EOF_BAT
+}
+
+write_skse_game_launcher_bat() {
+  local file="$1"
+
+  cat >"$file" <<'EOF_BAT'
+@echo off
+cd /d "%~dp0"
+if not exist "SkyrimSE.exe" (
+  echo SkyrimSE.exe was not found in %CD%
+  echo This batch file must live in the Skyrim Special Edition game folder.
+  pause
+  exit /b 1
+)
+if not exist "skse64_loader.exe" (
+  echo skse64_loader.exe was not found in %CD%
+  echo Run proton-vortex-skyrim-se install-skse, then try again.
+  pause
+  exit /b 1
+)
+start "" "%~dp0skse64_loader.exe"
 EOF_BAT
 }
 
@@ -364,6 +399,7 @@ create_vortex_picker_helpers() {
     write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
     write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
+    write_skse_game_launcher_bat "$game_dir/Launch Skyrim SE SKSE.bat"
   done < <(prefix_user_dirs "$pfx")
 }
 
@@ -900,6 +936,64 @@ empty_staging() {
   say "This did not delete or move your old staging folder. If Vortex offers to move existing mods into this empty folder, allow it."
 }
 
+fix_skse_launcher() {
+  local game_dir
+  local library
+  local compat_data
+  local pfx
+  local dosdevices
+  local drive_link
+  local base_dir
+  local staging_dir
+  local downloads_dir
+  local game_win
+  local staging_win
+  local downloads_win
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  pfx="$compat_data/pfx"
+  [[ -d "$pfx/drive_c" ]] || die "Proton prefix missing at $pfx. Run Skyrim once from Steam, then rerun bash install.sh."
+
+  if [[ ! -f "$game_dir/skse64_loader.exe" ]]; then
+    say "SKSE is not installed yet. Installing it now..."
+    install_skse
+  fi
+  [[ -f "$game_dir/SkyrimSE.exe" ]] || die "SkyrimSE.exe is missing from the detected game folder: $game_dir"
+
+  dosdevices="$pfx/dosdevices"
+  mkdir -p "$dosdevices"
+  drive_link="$dosdevices/$PROTON_VORTEX_DRIVE_LETTER:"
+  if [[ -L "$drive_link" || ! -e "$drive_link" ]]; then
+    ln -sfn "$library" "$drive_link"
+  else
+    say "Warning: Proton drive $PROTON_VORTEX_DRIVE_LETTER: already exists and is not a symlink: $drive_link"
+  fi
+
+  base_dir="$(vortex_base_dir_for_library "$library")"
+  staging_dir="$(vortex_prepared_staging_dir "$library")"
+  downloads_dir="$(vortex_prepared_downloads_dir "$library")"
+  mkdir -p "$base_dir" "$staging_dir" "$downloads_dir"
+
+  game_win="$(windows_path_hint "$library" "$game_dir")"
+  staging_win="$(windows_path_hint "$library" "$staging_dir")"
+  downloads_win="$(windows_path_hint "$library" "$downloads_dir")"
+  create_vortex_picker_helpers "$pfx" "$base_dir" "$staging_dir" "$downloads_dir" "$game_dir" "$game_win" "$staging_win" "$downloads_win"
+
+  say "Repaired SKSE launch helpers"
+  say "  Game folder:      $game_win"
+  say "  Vortex tool file: $game_win\\Launch Skyrim SE SKSE.bat"
+  say "  Desktop helper:   C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
+  say ""
+  say "In Vortex Dashboard, set the SKSE tool to:"
+  say "  Target:   $game_win\\Launch Skyrim SE SKSE.bat"
+  say "  Start in: $game_win"
+  say ""
+  say "Guaranteed Linux launch path:"
+  say "  proton-vortex-skyrim-se launch-skse"
+}
+
 audio_fix() {
   local game_dir
   local compat_data
@@ -963,6 +1057,7 @@ diagnose() {
   local compat_data
   local picker_help
   local skse_bat
+  local game_skse_bat
 
   say "Skyrim SE helper"
   say "  steam root:  ${STEAM_ROOT:-not set}"
@@ -985,11 +1080,18 @@ diagnose() {
     else
       say "  Vortex SKSE helper: missing; run proton-vortex-skyrim-se fix-staging"
     fi
+    game_skse_bat="$game_dir/Launch Skyrim SE SKSE.bat"
+    if [[ -f "$game_skse_bat" ]]; then
+      say "  Game-folder SKSE helper: $game_skse_bat"
+    else
+      say "  Game-folder SKSE helper: missing; run proton-vortex-skyrim-se fix-skse-launcher"
+    fi
     say ""
     say "To verify SKSE in-game:"
     say "  1. Launch: proton-vortex-skyrim-se launch-skse"
     say "  2. Open the Skyrim console with ~"
     say "  3. Run: getskseversion"
+    say "  If Vortex says SKSE could not find SkyrimSE.exe: proton-vortex-skyrim-se fix-skse-launcher"
     say ""
     say "To check deployment/audio:"
     say "  proton-vortex-skyrim-se deployment"
@@ -1007,6 +1109,7 @@ usage() {
 Usage:
   proton-vortex-skyrim-se install-skse
   proton-vortex-skyrim-se launch-skse
+  proton-vortex-skyrim-se fix-skse-launcher
   proton-vortex-skyrim-se diagnose
   proton-vortex-skyrim-se deployment
   proton-vortex-skyrim-se fix-staging
@@ -1030,6 +1133,9 @@ main() {
       ;;
     launch-skse|launch|play)
       launch_skse
+      ;;
+    fix-skse-launcher|skse-launcher|repair-skse-launcher|vortex-skse)
+      fix_skse_launcher
       ;;
     diagnose|status)
       diagnose

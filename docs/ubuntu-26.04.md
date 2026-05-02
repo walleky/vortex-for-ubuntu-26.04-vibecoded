@@ -236,6 +236,14 @@ Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Prot
 
 Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper does not force-edit Vortex's private state because that can risk profiles and mod lists. Rerunning `bash install.sh` adds Linux dock action **Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-staging` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat` for Vortex's tool picker.
 
+If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run:
+
+```bash
+proton-vortex-skyrim-se fix-skse-launcher
+```
+
+Then set the Vortex Dashboard SKSE tool to the printed `Launch Skyrim SE SKSE.bat` target and printed `Start in` folder. The generated batch file inside the Skyrim folder avoids the wrong-working-directory problem.
+
 ## App Icons
 
 The installer writes SVG icons into:

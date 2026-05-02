@@ -183,6 +183,7 @@ printf "  If Vortex is invisible/choppy/blank: PROTON_VORTEX_DISABLE_GPU=1 bash 
 printf "\nSKSE and deployment:\n"
 printf "  proton-vortex-skyrim-se install-skse\n"
 printf "  proton-vortex-skyrim-se launch-skse\n"
+printf "  proton-vortex-skyrim-se fix-skse-launcher\n"
 printf "  proton-vortex-skyrim-se deployment\n"
 printf "  proton-vortex-skyrim-se fix-staging\n"
 printf "  proton-vortex-skyrim-se empty-staging\n"

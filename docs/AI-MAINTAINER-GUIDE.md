@@ -70,6 +70,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Finds Steam Skyrim SE app `489830`
 - Installs SKSE64
 - Launches `skse64_loader.exe` through Proton
+- Provides `fix-skse-launcher` to create Vortex-safe SKSE batch launchers when Vortex starts SKSE from the wrong working directory
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 - Provides an explicit `hardlink-test` command for deployment filesystem checks
 - Provides `fix-staging` to create writable Vortex folders, Proton drive mapping, and symlinks for empty default Vortex folders
@@ -186,6 +187,15 @@ It may replace empty default Vortex staging/download folders with symlinks to th
 It must not delete existing staging folders. It may update `VORTEX_SKYRIMSE_STAGING_DIR` and `VORTEX_SKYRIMSE_STAGING_WIN_PATH` in `config.env` to keep future diagnostics pointed at the fresh folder.
 
 Do not auto-edit undocumented Vortex profile/tool/game state to force the Dashboard Play button to SKSE. Use the Linux SKSE launcher, dock action, helper command, or generated `.bat` file instead unless Vortex documents a stable state API.
+
+`proton-vortex-skyrim-se fix-skse-launcher` may create or overwrite wrapper-owned files:
+
+```text
+<Skyrim folder>/Launch Skyrim SE SKSE.bat
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.bat
+```
+
+These batch files must `cd` into the Skyrim folder before running `skse64_loader.exe`; otherwise SKSE can report that it cannot find `SkyrimSE.exe`.
 
 ## NXM Behavior
 

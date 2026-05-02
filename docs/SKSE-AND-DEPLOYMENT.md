@@ -53,17 +53,30 @@ If you also want Vortex's Dashboard button to launch SKSE:
 
 1. Open Vortex Dashboard
 2. Add a tool if SKSE is missing
-3. Set target to `skse64_loader.exe`
+3. Set target to the generated batch file in the Skyrim folder
 4. Set start-in to the Skyrim Special Edition game folder
 5. Make the SKSE tool primary
 
-After `proton-vortex-skyrim-se fix-staging`, the Proton desktop also contains:
+If Vortex says SKSE could not find `SkyrimSE.exe`, repair the launcher helpers:
+
+```bash
+proton-vortex-skyrim-se fix-skse-launcher
+```
+
+Then use the printed settings. They will look like:
+
+```text
+Target:   S:\steamapps\common\Skyrim Special Edition\Launch Skyrim SE SKSE.bat
+Start in: S:\steamapps\common\Skyrim Special Edition
+```
+
+After `proton-vortex-skyrim-se fix-staging` or `proton-vortex-skyrim-se fix-skse-launcher`, the Proton desktop also contains:
 
 ```text
 C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
 ```
 
-You can add that batch file as a Vortex Dashboard tool if the direct `skse64_loader.exe` tool is awkward.
+You can add that batch file as a Vortex Dashboard tool too, but the batch file inside the Skyrim game folder is harder for Vortex to launch from the wrong working directory.
 
 If that button still acts odd under Proton, use the Linux app icon **Skyrim SE SKSE (Proton)** or:
 
