@@ -41,6 +41,12 @@ Vortex defaults to 150% UI scale. If Vortex still looks tiny, rerun:
 PROTON_VORTEX_SCALE=1.5 bash install.sh
 ```
 
+The old Windows folder picker uses 200% scaling by default. If it still looks too small, rerun:
+
+```bash
+PROTON_VORTEX_DPI=192 bash install.sh
+```
+
 If Vortex is choppy or blank, try:
 
 ```bash
@@ -101,6 +107,15 @@ Then use the paths it prints, usually:
 Mod Staging Folder: S:\VortexMods\skyrimse\mods
 Downloads Folder:   S:\VortexMods\downloads
 Game folder:        S:\steamapps\common\Skyrim Special Edition
+```
+
+It also creates a text helper inside the Proton desktop:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+C:\users\steamuser\Desktop\Skyrim Special Edition
 ```
 
 ## Nexus API
@@ -185,6 +200,14 @@ Skyrim SE SKSE (Proton)
 ```
 
 That is the best way to play modded Skyrim. Use Vortex to install/deploy mods. Use Steam mostly for first launch setup or plain unmodded Skyrim.
+
+Vortex's own dashboard/play button only uses SKSE if Vortex has detected SKSE and made that tool primary. The wrapper cannot safely force Vortex's private state without risking your mod setup, so the no-hassle guaranteed launch path is the **Skyrim SE SKSE (Proton)** app icon or:
+
+```bash
+proton-vortex-skyrim-se launch-skse
+```
+
+If your dock supports right-click actions, the Vortex app icon also gets **Launch Skyrim SE SKSE** after rerunning `bash install.sh`.
 
 To check that SKSE really loaded, open the Skyrim console with `~` and run:
 

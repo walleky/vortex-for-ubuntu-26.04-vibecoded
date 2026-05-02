@@ -24,14 +24,15 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Rejects Flatpak Steam by default because host Proton cannot reliably use Flatpak's runtime
 - Prefers Proton Experimental/newest official Steam Proton before GE-Proton, unless `PROTON_PREFER_GE=1` or `PROTON_PATH` is set
 - Bootstraps the selected Proton prefix before Vortex install
-- Writes Vortex UI DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`
+- Writes Wine dialog/file-picker DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`; default is `192`
 - Stores `PROTON_VORTEX_SCALE`, which the launcher passes to Electron as a scale factor
 - Stores `PROTON_VORTEX_PERFORMANCE` and `PROTON_VORTEX_WINEDEBUG` for heavy-download and log-noise tuning
 - Prepares `VortexMods` staging/download folders beside Skyrim's Steam library
 - Maps that Steam library into Proton as `PROTON_VORTEX_DRIVE_LETTER`, default `s`
+- Creates Proton desktop picker helpers and an SKSE batch helper for Vortex's Windows dialogs
 - Installs Vortex through Proton
 - Copies launchers/helpers
-- Writes desktop files
+- Writes desktop files, including Vortex dock actions for SKSE launch and staging repair
 - Writes hicolor SVG app icons and refreshes icon cache when available
 - Registers `nxm://`
 - Tries SKSE64 setup only when Skyrim is found and SKSE is not already present, unless `SKSE_AUTO_UPDATE=1`
@@ -156,9 +157,16 @@ Do not make it rewrite Vortex's internal state with `--set` unless the state pat
 <Steam Library>/VortexMods/skyrimse/mods
 <Steam Library>/VortexMods/downloads
 <Skyrim prefix>/pfx/dosdevices/s:
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/PROTON_VORTEX_PATHS.txt
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Vortex Staging Skyrim SE
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Vortex Downloads
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Skyrim Special Edition
+<Skyrim prefix>/pfx/drive_c/users/*/Desktop/Launch Skyrim SE SKSE.bat
 ```
 
 It may replace empty default Vortex staging/download folders with symlinks to those prepared folders. It must leave non-empty existing folders alone.
+
+Do not auto-edit undocumented Vortex profile/tool/game state to force the Dashboard Play button to SKSE. Use the Linux SKSE launcher, dock action, helper command, or generated `.bat` file instead unless Vortex documents a stable state API.
 
 ## NXM Behavior
 
@@ -358,8 +366,10 @@ Two Skyrim entries in Vortex:
 Tiny or choppy Vortex UI:
 
 - Default scale is `PROTON_VORTEX_SCALE=1.5`
+- Default Wine dialog/file picker DPI is `PROTON_VORTEX_DPI=192`
 - Try `PROTON_VORTEX_SCALE=1.25 proton-vortex` if 150% is too large
 - Persist with `PROTON_VORTEX_SCALE=1.5 bash install.sh`
+- Persist 200% Wine dialogs with `PROTON_VORTEX_DPI=192 bash install.sh`
 - Try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex` for blank/choppy Electron rendering
 - Try `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` for heavy download sessions
 - Suggest reducing Vortex parallel downloads to 1-2 for large collections

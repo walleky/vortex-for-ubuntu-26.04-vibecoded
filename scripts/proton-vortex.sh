@@ -285,6 +285,8 @@ doctor() {
   local staging=""
   local staged_count=""
   local free_space=""
+  local picker_help=""
+  local skse_bat=""
   local linked=0
 
   if [[ "$fix" == "--fix" ]]; then
@@ -295,6 +297,9 @@ doctor() {
     fi
     if command -v update-desktop-database >/dev/null 2>&1; then
       update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
+    fi
+    if command -v xdg-desktop-menu >/dev/null 2>&1; then
+      xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
     fi
   fi
 
@@ -357,6 +362,12 @@ doctor() {
   if [[ -n "${VORTEX_DOWNLOADS_DIR:-}" ]]; then
     [[ -d "$VORTEX_DOWNLOADS_DIR" ]] && ok "prepared downloads: $VORTEX_DOWNLOADS_DIR" || { warn "prepared downloads missing: $VORTEX_DOWNLOADS_DIR"; status=1; }
     [[ -n "${VORTEX_DOWNLOADS_WIN_PATH:-}" ]] && ok "prepared downloads in Vortex: $VORTEX_DOWNLOADS_WIN_PATH"
+  fi
+  if [[ -d "$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop" ]]; then
+    picker_help="$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop/PROTON_VORTEX_PATHS.txt"
+    skse_bat="$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop/Launch Skyrim SE SKSE.bat"
+    [[ -f "$picker_help" ]] && ok "Proton picker helper: $picker_help" || { warn "Proton picker helper missing; run: proton-vortex-skyrim-se fix-staging"; status=1; }
+    [[ -f "$skse_bat" ]] && ok "Vortex SKSE batch helper: $skse_bat" || { warn "Vortex SKSE batch helper missing; run: proton-vortex-skyrim-se fix-staging"; status=1; }
   fi
 
   if [[ -n "$VORTEX_GAME_ID" && -d "$COMPAT_DATA/pfx/drive_c" ]]; then

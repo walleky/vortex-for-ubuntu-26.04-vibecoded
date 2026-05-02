@@ -30,6 +30,7 @@ If you are an AI assistant or maintainer:
 - If Steam Skyrim Special Edition is installed, Vortex uses Skyrim SE's Proton prefix by default
 - If Steam Skyrim Special Edition is found, plain Vortex launches with Vortex game id `skyrimse`
 - A writable `VortexMods` folder beside Skyrim's Steam library, exposed to Proton as a simple drive such as `S:`
+- Larger 200% Wine/Proton file picker dialogs, while Vortex itself still defaults to 150% Electron scale
 - Automatic SKSE64 install helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
@@ -147,6 +148,18 @@ The wrapper now creates a normal visible folder beside the Steam library, usuall
 
 Inside Vortex's old Windows file picker, use the prepared simple drive path printed by `proton-vortex-skyrim-se fix-staging`, usually `S:\VortexMods\skyrimse\mods`. Do not create folders at bare `Z:\`; in Proton, `Z:` is your whole Linux filesystem, and many places under it are not writable.
 
+The wrapper also writes helper shortcuts into the Proton desktop:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+C:\users\steamuser\Desktop\Skyrim Special Edition
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+```
+
+These make the old picker less hostile, but the safest paths to paste/use are still the printed `S:\...` paths.
+
 SKSE64 is handled directly by this wrapper because SKSE needs loader/DLL files beside `SkyrimSE.exe`.
 
 If Vortex downloaded mods but Skyrim still looks unmodded, read [SKSE And Deployment Checklist](docs/SKSE-AND-DEPLOYMENT.md). The short version is: install/enable mods, enable plugins, click **Deploy Mods**, and launch with `proton-vortex-skyrim-se launch-skse`.
@@ -186,12 +199,14 @@ bash uninstall.sh
 - Game mod deployment can still depend on the game and filesystem layout. Steam Proton games under normal Steam library folders are the target path here.
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.
 - If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
-- The installer sets the Proton prefix Windows DPI to `120` percent-ish scaling so Vortex is not tiny on high-DPI Ubuntu desktops. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
+- The installer sets the Proton prefix Windows DPI to `192`, which is 200% scaling for Wine dialogs and Vortex's old Windows file picker. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
 - The launcher also applies Electron UI scaling with `PROTON_VORTEX_SCALE=1.5`, which is 150%. Override it with `PROTON_VORTEX_SCALE=1.25 proton-vortex`, or disable with `PROTON_VORTEX_SCALE=0 proton-vortex`.
 - If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
+- If the Vortex dock icon is generic, rerun `bash install.sh`; the launcher now uses the lower-case Wine window class `vortex.exe` and adds dock actions for SKSE launch/staging repair.
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
 - If Vortex says the mod staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`, then use the printed `S:\...` paths in Vortex.
+- Vortex's own Play button may still use plain Skyrim unless Vortex has made SKSE primary. The always-correct launch path is `proton-vortex-skyrim-se launch-skse`, the **Skyrim SE SKSE (Proton)** icon, or the Vortex dock action **Launch Skyrim SE SKSE**.
 - If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
 - If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
 - If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.

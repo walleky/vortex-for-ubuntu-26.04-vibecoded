@@ -57,6 +57,14 @@ If you also want Vortex's Dashboard button to launch SKSE:
 4. Set start-in to the Skyrim Special Edition game folder
 5. Make the SKSE tool primary
 
+After `proton-vortex-skyrim-se fix-staging`, the Proton desktop also contains:
+
+```text
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+```
+
+You can add that batch file as a Vortex Dashboard tool if the direct `skse64_loader.exe` tool is awkward.
+
 If that button still acts odd under Proton, use the Linux app icon **Skyrim SE SKSE (Proton)** or:
 
 ```bash
@@ -126,6 +134,15 @@ proton-vortex-skyrim-se fix-staging
 ```
 
 That creates a visible `VortexMods` folder beside the Steam library, maps the Steam library into Proton as a simple drive such as `S:`, and tests that hardlink deployment can work.
+
+It also creates helper entries on the Proton desktop:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+C:\users\steamuser\Desktop\Skyrim Special Edition
+```
 
 Use the printed paths in Vortex:
 
@@ -208,7 +225,7 @@ Risk signs:
 
 The wrapper applies two UI scaling helpers:
 
-- Windows DPI inside the Proton prefix: `PROTON_VORTEX_DPI`
+- Windows DPI inside the Proton prefix for Wine dialogs/file picker: `PROTON_VORTEX_DPI`, default `192` for 200%
 - Electron scale factor at launch: `PROTON_VORTEX_SCALE`
 
 Try a bigger one-off launch:

@@ -237,6 +237,106 @@ link_empty_or_missing_dir() {
   ln -s "$target_path" "$link_path"
 }
 
+link_picker_shortcut() {
+  local link_path="$1"
+  local target_path="$2"
+  local label="$3"
+
+  mkdir -p "$(dirname -- "$link_path")" "$target_path"
+
+  if [[ -L "$link_path" || ! -e "$link_path" ]]; then
+    ln -sfn "$target_path" "$link_path"
+    return 0
+  fi
+
+  say "Leaving existing picker shortcut alone because it already exists: $link_path ($label)"
+}
+
+prefix_user_dirs() {
+  local pfx="$1"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser"
+    "$pfx/drive_c/users/$USER"
+  )
+
+  for candidate in "$pfx"/drive_c/users/*; do
+    candidates+=("$candidate")
+  done
+
+  for candidate in "${candidates[@]}"; do
+    [[ -d "$candidate" ]] || continue
+    case "$(basename -- "$candidate")" in
+      Public|"All Users")
+        continue
+        ;;
+    esac
+    printf '%s\n' "$candidate"
+  done | awk '!seen[$0]++'
+}
+
+write_picker_readme() {
+  local file="$1"
+  local game_win="$2"
+  local staging_win="$3"
+  local downloads_win="$4"
+
+  cat >"$file" <<EOF_PICKER
+Use these paths in Vortex:
+
+Game folder:
+$game_win
+
+Mod Staging Folder:
+$staging_win
+
+Downloads Folder:
+$downloads_win
+
+Avoid choosing bare Z:\\. Z: is the whole Linux filesystem and many places are not writable.
+EOF_PICKER
+}
+
+write_skse_launcher_bat() {
+  local file="$1"
+  local game_win="$2"
+
+  cat >"$file" <<EOF_BAT
+@echo off
+cd /d "$game_win"
+start "" "skse64_loader.exe"
+EOF_BAT
+}
+
+create_vortex_picker_helpers() {
+  local pfx="$1"
+  local base_dir="$2"
+  local staging_dir="$3"
+  local downloads_dir="$4"
+  local game_dir="$5"
+  local game_win="$6"
+  local staging_win="$7"
+  local downloads_win="$8"
+  local user_dir
+  local desktop
+  local docs
+
+  while IFS= read -r user_dir; do
+    desktop="$user_dir/Desktop"
+    docs="$user_dir/Documents"
+    mkdir -p "$desktop" "$docs"
+
+    link_picker_shortcut "$desktop/VortexMods Steam Library" "$base_dir" "VortexMods base"
+    link_picker_shortcut "$desktop/Vortex Staging Skyrim SE" "$staging_dir" "Skyrim SE staging"
+    link_picker_shortcut "$desktop/Vortex Downloads" "$downloads_dir" "Vortex downloads"
+    link_picker_shortcut "$desktop/Skyrim Special Edition" "$game_dir" "Skyrim SE game folder"
+
+    write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
+  done < <(prefix_user_dirs "$pfx")
+}
+
 same_device() {
   local left="$1"
   local right="$2"
@@ -629,6 +729,7 @@ fix_staging() {
   local staging_win
   local downloads_win
   local test_file
+  local base_dir
 
   game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
   library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
@@ -667,11 +768,15 @@ fix_staging() {
   game_win="$(windows_path_hint "$library" "$game_dir")"
   staging_win="$(windows_path_hint "$library" "$staging_dir")"
   downloads_win="$(windows_path_hint "$library" "$downloads_dir")"
+  base_dir="$(vortex_base_dir_for_library "$library")"
+  create_vortex_picker_helpers "$pfx" "$base_dir" "$staging_dir" "$downloads_dir" "$game_dir" "$game_win" "$staging_win" "$downloads_win"
 
   say "Prepared writable Vortex folders"
   say "  Linux staging:   $staging_dir"
   say "  Linux downloads: $downloads_dir"
   say "  Proton drive:    ${PROTON_VORTEX_DRIVE_LETTER^^}: maps to $library"
+  say "  Picker help:     C:\\users\\steamuser\\Desktop\\PROTON_VORTEX_PATHS.txt"
+  say "  SKSE helper:     C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
   say ""
   say "Use these inside Vortex if it asks for folders:"
   say "  Game folder:        $game_win"
@@ -745,6 +850,8 @@ launch_skse() {
 diagnose() {
   local game_dir
   local compat_data
+  local picker_help
+  local skse_bat
 
   say "Skyrim SE helper"
   say "  steam root:  ${STEAM_ROOT:-not set}"
@@ -755,6 +862,18 @@ diagnose() {
     say "  game dir:    $game_dir"
     say "  compatdata:  $compat_data"
     skse_status "$game_dir"
+    picker_help="$compat_data/pfx/drive_c/users/steamuser/Desktop/PROTON_VORTEX_PATHS.txt"
+    skse_bat="$compat_data/pfx/drive_c/users/steamuser/Desktop/Launch Skyrim SE SKSE.bat"
+    if [[ -f "$picker_help" ]]; then
+      say "  picker help: $picker_help"
+    else
+      say "  picker help: missing; run proton-vortex-skyrim-se fix-staging"
+    fi
+    if [[ -f "$skse_bat" ]]; then
+      say "  Vortex SKSE helper: $skse_bat"
+    else
+      say "  Vortex SKSE helper: missing; run proton-vortex-skyrim-se fix-staging"
+    fi
     say ""
     say "To verify SKSE in-game:"
     say "  1. Launch: proton-vortex-skyrim-se launch-skse"

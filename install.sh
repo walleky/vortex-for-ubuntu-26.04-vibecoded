@@ -20,7 +20,7 @@ CONFIG_FILE="$APP_HOME/config.env"
 APP_COMPAT_DATA="$APP_HOME/compatdata"
 COMPAT_DATA="$APP_COMPAT_DATA"
 PROTON_APP_ID="${PROTON_APP_ID:-$SKYRIM_APP_ID}"
-PROTON_VORTEX_DPI="${PROTON_VORTEX_DPI:-120}"
+PROTON_VORTEX_DPI="${PROTON_VORTEX_DPI:-192}"
 PROTON_VORTEX_SCALE="${PROTON_VORTEX_SCALE:-1.5}"
 PROTON_VORTEX_PERFORMANCE="${PROTON_VORTEX_PERFORMANCE:-0}"
 PROTON_VORTEX_WINEDEBUG="${PROTON_VORTEX_WINEDEBUG:--all}"
@@ -507,8 +507,17 @@ Categories=Game;Utility;
 Exec=$launcher_exec
 Terminal=false
 Icon=proton-vortex
-StartupWMClass=Vortex.exe
+StartupWMClass=vortex.exe
 StartupNotify=true
+Actions=LaunchSKSE;FixStaging;
+
+[Desktop Action LaunchSKSE]
+Name=Launch Skyrim SE SKSE
+Exec=$(desktop_quote "$SKYRIM_HELPER") launch-skse
+
+[Desktop Action FixStaging]
+Name=Fix Skyrim SE Staging
+Exec=$(desktop_quote "$SKYRIM_HELPER") fix-staging
 EOF_DESKTOP
 
   cat >"$APP_DESKTOP_DIR/proton-vortex-nxm.desktop" <<EOF_DESKTOP
@@ -561,6 +570,9 @@ EOF_DESKTOP
 
   if have update-desktop-database; then
     update-desktop-database "$APP_DESKTOP_DIR" >/dev/null 2>&1 || true
+  fi
+  if have xdg-desktop-menu; then
+    xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
   fi
 }
 
@@ -630,6 +642,106 @@ link_empty_or_missing_dir() {
   ln -s "$target_path" "$link_path"
 }
 
+link_picker_shortcut() {
+  local link_path="$1"
+  local target_path="$2"
+  local label="$3"
+
+  mkdir -p "$(dirname -- "$link_path")" "$target_path"
+
+  if [[ -L "$link_path" || ! -e "$link_path" ]]; then
+    ln -sfn "$target_path" "$link_path"
+    return 0
+  fi
+
+  say "Leaving existing picker shortcut alone because it already exists: $link_path ($label)"
+}
+
+prefix_user_dirs() {
+  local pfx="$1"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser"
+    "$pfx/drive_c/users/$USER"
+  )
+
+  for candidate in "$pfx"/drive_c/users/*; do
+    candidates+=("$candidate")
+  done
+
+  for candidate in "${candidates[@]}"; do
+    [[ -d "$candidate" ]] || continue
+    case "$(basename -- "$candidate")" in
+      Public|"All Users")
+        continue
+        ;;
+    esac
+    printf '%s\n' "$candidate"
+  done | awk '!seen[$0]++'
+}
+
+write_picker_readme() {
+  local file="$1"
+  local game_win="$2"
+  local staging_win="$3"
+  local downloads_win="$4"
+
+  cat >"$file" <<EOF_PICKER
+Use these paths in Vortex:
+
+Game folder:
+$game_win
+
+Mod Staging Folder:
+$staging_win
+
+Downloads Folder:
+$downloads_win
+
+Avoid choosing bare Z:\\. Z: is the whole Linux filesystem and many places are not writable.
+EOF_PICKER
+}
+
+write_skse_launcher_bat() {
+  local file="$1"
+  local game_win="$2"
+
+  cat >"$file" <<EOF_BAT
+@echo off
+cd /d "$game_win"
+start "" "skse64_loader.exe"
+EOF_BAT
+}
+
+create_vortex_picker_helpers() {
+  local pfx="$1"
+  local base_dir="$2"
+  local staging_dir="$3"
+  local downloads_dir="$4"
+  local game_dir="$5"
+  local game_win="$6"
+  local staging_win="$7"
+  local downloads_win="$8"
+  local user_dir
+  local desktop
+  local docs
+
+  while IFS= read -r user_dir; do
+    desktop="$user_dir/Desktop"
+    docs="$user_dir/Documents"
+    mkdir -p "$desktop" "$docs"
+
+    link_picker_shortcut "$desktop/VortexMods Steam Library" "$base_dir" "VortexMods base"
+    link_picker_shortcut "$desktop/Vortex Staging Skyrim SE" "$staging_dir" "Skyrim SE staging"
+    link_picker_shortcut "$desktop/Vortex Downloads" "$downloads_dir" "Vortex downloads"
+    link_picker_shortcut "$desktop/Skyrim Special Edition" "$game_dir" "Skyrim SE game folder"
+
+    write_picker_readme "$desktop/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_picker_readme "$docs/PROTON_VORTEX_PATHS.txt" "$game_win" "$staging_win" "$downloads_win"
+    write_skse_launcher_bat "$desktop/Launch Skyrim SE SKSE.bat" "$game_win"
+  done < <(prefix_user_dirs "$pfx")
+}
+
 vortex_roaming_dir_for_prefix() {
   local compat_data="$1"
   local pfx="$compat_data/pfx"
@@ -656,6 +768,7 @@ configure_skyrim_vortex_storage() {
   local roaming
   local default_staging
   local default_downloads
+  local base_dir
 
   if [[ -z "${SKYRIM_SE_GAME_DIR:-}" || -z "${SKYRIM_SE_LIBRARY_ROOT:-}" ]]; then
     return 0
@@ -677,11 +790,15 @@ configure_skyrim_vortex_storage() {
 
   link_empty_or_missing_dir "$default_staging" "$VORTEX_SKYRIMSE_STAGING_DIR" "default Skyrim SE staging folder"
   link_empty_or_missing_dir "$default_downloads" "$VORTEX_DOWNLOADS_DIR" "default Vortex downloads folder"
+  base_dir="${VORTEX_SKYRIMSE_BASE_DIR:-$SKYRIM_SE_LIBRARY_ROOT/VortexMods}"
+  create_vortex_picker_helpers "$pfx" "$base_dir" "$VORTEX_SKYRIMSE_STAGING_DIR" "$VORTEX_DOWNLOADS_DIR" "$SKYRIM_SE_GAME_DIR" "$VORTEX_SKYRIMSE_GAME_WIN_PATH" "$VORTEX_SKYRIMSE_STAGING_WIN_PATH" "$VORTEX_DOWNLOADS_WIN_PATH"
 
   say "Prepared Vortex folders:"
   say "  Mod staging: $VORTEX_SKYRIMSE_STAGING_WIN_PATH"
   say "  Downloads:   $VORTEX_DOWNLOADS_WIN_PATH"
   say "  Game folder: $VORTEX_SKYRIMSE_GAME_WIN_PATH"
+  say "  Picker help: C:\\users\\steamuser\\Desktop\\PROTON_VORTEX_PATHS.txt"
+  say "  SKSE helper: C:\\users\\steamuser\\Desktop\\Launch Skyrim SE SKSE.bat"
 }
 
 setup_skyrim_se() {
@@ -778,7 +895,7 @@ configure_prefix_ui() {
     return 0
   fi
 
-  say "Setting Windows DPI scale for Vortex UI: $PROTON_VORTEX_DPI"
+  say "Setting Windows DPI scale for Vortex dialogs/file picker: $PROTON_VORTEX_DPI"
   if ! run_proton_command "$proton_dir" run reg add 'HKCU\Control Panel\Desktop' /v Win8DpiScaling /t REG_DWORD /d 1 /f >/dev/null; then
     say "Warning: could not set Win8DpiScaling in the Proton prefix."
   fi

@@ -11,6 +11,7 @@ LAUNCHER="$BIN_HOME/proton-vortex"
 SKYRIM_HELPER="$BIN_HOME/proton-vortex-skyrim-se"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
 NXM_DESKTOP="$DATA_HOME/applications/proton-vortex-nxm.desktop"
+VORTEX_DESKTOP="$DATA_HOME/applications/proton-vortex.desktop"
 SKYRIM_DESKTOP="$DATA_HOME/applications/proton-vortex-skyrim-se.desktop"
 IMPORT_DESKTOP="$DATA_HOME/applications/proton-vortex-import.desktop"
 VORTEX_ICON="$DATA_HOME/icons/hicolor/scalable/apps/proton-vortex.svg"
@@ -56,6 +57,7 @@ check_file "$CONFIG_FILE" "config"
 check_file "$LAUNCHER" "launcher"
 check_file "$SKYRIM_HELPER" "Skyrim SE helper"
 check_file "$INTAKE_HELPER" "mod intake helper"
+check_file "$VORTEX_DESKTOP" "Vortex desktop file"
 check_file "$NXM_DESKTOP" "NXM desktop file"
 check_file "$SKYRIM_DESKTOP" "Skyrim SE desktop file"
 check_file "$IMPORT_DESKTOP" "archive import desktop file"
@@ -84,7 +86,7 @@ if [[ -r "$CONFIG_FILE" ]]; then
     warn "Vortex game id is not forced. Expected skyrimse when Skyrim SE is detected."
   fi
   if [[ -n "${PROTON_VORTEX_DPI:-}" ]]; then
-    ok "Vortex UI DPI setting: $PROTON_VORTEX_DPI"
+    ok "Vortex/Wine dialog DPI setting: $PROTON_VORTEX_DPI"
   fi
   if [[ -n "${PROTON_VORTEX_SCALE:-}" ]]; then
     ok "Vortex Electron scale factor: $PROTON_VORTEX_SCALE"
@@ -94,6 +96,18 @@ if [[ -r "$CONFIG_FILE" ]]; then
   fi
   if [[ -n "${PROTON_VORTEX_DRIVE_LETTER:-}" ]]; then
     ok "Vortex simple drive letter: ${PROTON_VORTEX_DRIVE_LETTER^^}:"
+  fi
+  if [[ -r "$VORTEX_DESKTOP" ]]; then
+    if grep -q '^StartupWMClass=vortex\.exe$' "$VORTEX_DESKTOP"; then
+      ok "Vortex dock window class: vortex.exe"
+    else
+      warn "Vortex dock window class is not the current value. Rerun: bash install.sh"
+    fi
+    if grep -q '^Actions=LaunchSKSE;FixStaging;$' "$VORTEX_DESKTOP"; then
+      ok "Vortex dock actions: Launch SKSE and Fix Staging"
+    else
+      warn "Vortex dock actions missing. Rerun: bash install.sh"
+    fi
   fi
   if [[ -n "${VORTEX_SKYRIMSE_STAGING_DIR:-}" ]]; then
     if [[ -d "$VORTEX_SKYRIMSE_STAGING_DIR" ]]; then
@@ -107,6 +121,20 @@ if [[ -r "$CONFIG_FILE" ]]; then
       ok "Prepared Vortex downloads folder: $VORTEX_DOWNLOADS_DIR"
     else
       warn "Prepared Vortex downloads folder missing: $VORTEX_DOWNLOADS_DIR"
+    fi
+  fi
+  if [[ -n "${COMPAT_DATA:-}" && -d "$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop" ]]; then
+    picker_help="$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop/PROTON_VORTEX_PATHS.txt"
+    skse_bat="$COMPAT_DATA/pfx/drive_c/users/steamuser/Desktop/Launch Skyrim SE SKSE.bat"
+    if [[ -f "$picker_help" ]]; then
+      ok "Proton file picker helper: $picker_help"
+    else
+      warn "Proton file picker helper missing. Run: proton-vortex-skyrim-se fix-staging"
+    fi
+    if [[ -f "$skse_bat" ]]; then
+      ok "Vortex SKSE batch helper: $skse_bat"
+    else
+      warn "Vortex SKSE batch helper missing. Run: proton-vortex-skyrim-se fix-staging"
     fi
   fi
   if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && -n "${COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then

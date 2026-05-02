@@ -17,8 +17,10 @@ This project does the Linux desktop integration:
 - Creates the Proton prefix if it is missing
 - Creates writable Vortex staging/download folders near Skyrim's Steam library
 - Maps that Steam library into Proton as a simple drive letter such as `S:`
+- Creates Proton desktop shortcuts/readme files so Vortex's old file picker has obvious writable targets
 - Registers `nxm://` browser links
 - Downloads SKSE64 and puts the files where Skyrim expects them when SKSE is missing
+- Adds Linux launchers for Vortex and SKSE, plus Vortex dock actions for SKSE and staging repair
 - Imports local and external mod archives into Vortex
 
 ## Why Skyrim's Proton Prefix Matters
@@ -60,6 +62,18 @@ S:\VortexMods\downloads
 ```
 
 That avoids asking users to create folders under bare `Z:\`, which is Proton's view of the entire Linux filesystem and often includes paths Vortex cannot write to.
+
+The wrapper cannot replace Vortex's built-in Windows file picker without forking Vortex. Instead, `proton-vortex-skyrim-se fix-staging` creates helper entries on the Proton desktop:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+C:\users\steamuser\Desktop\Skyrim Special Edition
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+```
+
+It also sets the Wine/Proton dialog DPI to `192` by default during install, which makes the old file picker roughly 200% scale. Vortex's main Electron UI uses `PROTON_VORTEX_SCALE`, default `1.5`.
 
 If Vortex says deploy failed, it means the download/install state inside Vortex may be fine, but Vortex could not link the enabled files into Skyrim's `Data` folder. `proton-vortex-skyrim-se hardlink-test` checks the most common filesystem cause.
 
@@ -179,6 +193,15 @@ skse64_loader.exe
 ```
 
 through the Skyrim SE Proton prefix.
+
+Vortex's own Dashboard/Play button uses SKSE only after Vortex has detected SKSE and made it the primary tool. The wrapper does not force-edit Vortex's private game/tool state because that is where profiles, collections, and mod state live. The guaranteed launch paths are:
+
+```text
+Skyrim SE SKSE (Proton)
+proton-vortex-skyrim-se launch-skse
+Vortex dock action: Launch Skyrim SE SKSE
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+```
 
 To verify SKSE, launch with the helper, open Skyrim's console, and run:
 

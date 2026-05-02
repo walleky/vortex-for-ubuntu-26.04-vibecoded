@@ -66,6 +66,18 @@ It should not rewrite Vortex's internal configuration.
 
 `proton-vortex-skyrim-se fix-staging` creates prepared staging/download folders, maps the Steam library into Proton as a simple drive such as `S:`, links empty default Vortex folders, and runs a hardlink test. It leaves non-empty existing Vortex folders alone.
 
+It also creates Proton desktop helpers for the old Windows file picker:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+C:\users\steamuser\Desktop\Skyrim Special Edition
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+```
+
+Those helpers are recreated on repair and do not delete Vortex's mod list, downloads, collections, or profiles.
+
 ## Proton Compatibility
 
 The installer chooses Proton in this order:
@@ -86,10 +98,13 @@ PROTON_PREFER_GE=1 bash install.sh
 
 - Vortex is still the Windows app running through Proton, so occasional Electron UI jank can happen.
 - Electron UI scaling is handled with `PROTON_VORTEX_SCALE`, defaulting to `1.5` for 150% UI scale.
+- Wine dialog and file picker scaling is handled with `PROTON_VORTEX_DPI`, defaulting to `192` for about 200% scale.
 - Heavy download sessions can use `PROTON_VORTEX_PERFORMANCE=1`; it changes launcher flags only, not Vortex data.
 - Nexus Premium controls fully automatic collection downloads; the wrapper does not bypass Nexus account limits.
 - Vortex hardlink deployment needs the staging folder and Skyrim folder on the same filesystem.
 - If Vortex's Windows picker shows `C:` and `Z:`, use `proton-vortex-skyrim-se fix-staging` and the printed `S:\...` paths instead of creating folders at bare `Z:\`.
+- The Vortex launcher uses `StartupWMClass=vortex.exe` plus desktop actions for SKSE and staging repair, but some docks cache old launcher metadata until logout/login or re-pinning.
+- The wrapper does not force Vortex's private Dashboard/Play tool state. Use the SKSE launcher, `proton-vortex-skyrim-se launch-skse`, the Vortex dock action, or the generated SKSE batch helper for guaranteed SKSE launch.
 - `proton-vortex-skyrim-se hardlink-test` writes and removes one tiny test file to confirm hardlinks can be created.
 - Downloaded mods still need Vortex's normal install, enable, plugin-enable, and deploy steps before Skyrim can load them.
 - Vortex can discover duplicate Skyrim entries through different Proton-visible paths. Manage the one matching `proton-vortex doctor`.

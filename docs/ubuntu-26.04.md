@@ -83,6 +83,15 @@ The command creates and tests:
 <SteamLibrary>/VortexMods/downloads
 ```
 
+It also creates helper items inside Proton's fake Windows desktop:
+
+```text
+C:\users\steamuser\Desktop\PROTON_VORTEX_PATHS.txt
+C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
+C:\users\steamuser\Desktop\Vortex Staging Skyrim SE
+C:\users\steamuser\Desktop\Vortex Downloads
+```
+
 Then use the printed paths in Vortex Settings:
 
 ```text
@@ -95,7 +104,7 @@ Downloaded mods are archives. Installed mods are unpacked into the staging folde
 
 ## Vortex UI Scale
 
-The installer sets Windows DPI inside the Proton prefix to `120` and launches Vortex with Electron scale `1.5` so Vortex is less tiny on Ubuntu high-DPI desktops.
+The installer sets Windows DPI inside the Proton prefix to `192`, which makes Wine dialogs and the old Vortex file picker about 200%. It launches Vortex itself with Electron scale `1.5`, so the main Vortex UI stays at 150% by default.
 
 To force the default 150% UI scale:
 
@@ -119,6 +128,12 @@ To disable the Windows DPI tweak:
 
 ```bash
 PROTON_VORTEX_DPI=0 bash install.sh
+```
+
+To force 200% Wine/file-picker scaling:
+
+```bash
+PROTON_VORTEX_DPI=192 bash install.sh
 ```
 
 If Vortex is blank or very choppy, try disabling Electron GPU acceleration for Vortex:
@@ -208,6 +223,8 @@ or the **Skyrim SE SKSE (Proton)** app icon.
 
 Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Proton settings, and unmodded launching.
 
+Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper does not force-edit Vortex's private state because that can risk profiles and mod lists. Rerunning `bash install.sh` adds Linux dock action **Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-staging` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat` for Vortex's tool picker.
+
 ## App Icons
 
 The installer writes SVG icons into:
@@ -221,6 +238,8 @@ Then it uses those icons in the Linux desktop entries. If your dock still shows 
 ```bash
 bash install.sh
 ```
+
+The Vortex desktop file uses `StartupWMClass=vortex.exe` for Wine window matching. Some desktops cache icons aggressively; logging out/in after rerunning the installer may be needed.
 
 ## SKSE64
 
