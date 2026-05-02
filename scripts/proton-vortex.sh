@@ -66,7 +66,7 @@ load_config() {
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
   VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
   PROTON_VORTEX_DISABLE_GPU="${env_disable_gpu:-${PROTON_VORTEX_DISABLE_GPU:-0}}"
-  PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.25}}"
+  PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.5}}"
   INSTALL_SOURCE_DIR="${INSTALL_SOURCE_DIR:-}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
@@ -206,7 +206,7 @@ print_info() {
   fi
   say "  proton app id: ${PROTON_APP_ID:-0}"
   say "  disable gpu:   $PROTON_VORTEX_DISABLE_GPU"
-  say "  ui scale:      ${PROTON_VORTEX_SCALE:-1.25}"
+  say "  ui scale:      ${PROTON_VORTEX_SCALE:-1.5}"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
   say "  logs:          $LOG_DIR"
@@ -361,6 +361,7 @@ doctor() {
   say "  - Use Hardlink Deployment when Vortex asks."
   say "  - In Vortex, downloaded mods still need Installed, Enabled, Plugins enabled, then Deploy Mods."
   say "  - If Vortex shows two Skyrims, manage the one whose path matches the Skyrim Vortex path hint above."
+  say "  - If character voices are gone, run: proton-vortex-skyrim-se audio-check"
   say "  - Nexus Free accounts may still require manual collection download clicks."
   if ((linked == 1)); then
     say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"

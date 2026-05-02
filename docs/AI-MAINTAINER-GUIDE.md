@@ -65,6 +65,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Finds Steam Skyrim SE app `489830`
 - Installs SKSE64
 - Launches `skse64_loader.exe` through Proton
+- Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 
 `scripts/diagnose.sh`
 
@@ -339,9 +340,17 @@ Two Skyrim entries in Vortex:
 
 Tiny or choppy Vortex UI:
 
-- Try `PROTON_VORTEX_SCALE=1.5 proton-vortex`
+- Default scale is `PROTON_VORTEX_SCALE=1.5`
+- Try `PROTON_VORTEX_SCALE=1.25 proton-vortex` if 150% is too large
 - Persist with `PROTON_VORTEX_SCALE=1.5 bash install.sh`
 - Try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex` for blank/choppy Electron rendering
+
+Character voices missing:
+
+- Run `proton-vortex-skyrim-se audio-check`
+- If voice BSA files are missing, tell user to verify Skyrim files in Steam and check language
+- If voice BSA files are present but voices are silent, run `proton-vortex-skyrim-se audio-fix`
+- Do not run audio-fix automatically; it modifies the Proton prefix
 
 Need to force SKSE during wrapper install:
 

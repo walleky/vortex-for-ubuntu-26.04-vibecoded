@@ -175,6 +175,8 @@ If Vortex downloaded mods but the game looks unchanged, Vortex still needs the n
 
 If Vortex shows two Skyrim entries, use `proton-vortex doctor` to print the expected Linux path and Proton `Z:\...` path hint. The Vortex-managed Skyrim entry should match that path.
 
+`proton-vortex-skyrim-se deployment` checks the Skyrim `Data` folder, voice archives, deployed plugin files, and Proton `plugins.txt`. `proton-vortex-skyrim-se audio-fix` is optional and installs `xact` into the Skyrim Proton prefix through `protontricks` or `winetricks` for the Proton voice-audio issue.
+
 ## Data Locations
 
 Main config:

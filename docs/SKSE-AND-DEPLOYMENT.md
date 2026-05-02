@@ -170,5 +170,37 @@ PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 proton-vortex doctor
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
+proton-vortex-skyrim-se deployment
 proton-vortex-skyrim-se launch-skse
+```
+
+## Character Voices Are Gone
+
+If music/effects work but NPC or player voices are silent, check the game voice archives first:
+
+```bash
+proton-vortex-skyrim-se audio-check
+```
+
+Good sign:
+
+- `voice BSA: present`
+
+Bad sign:
+
+- `voice BSA: missing`
+
+If the voice BSA is missing, use Steam's **Verify integrity of game files** for Skyrim Special Edition and make sure the Steam language is the language you want.
+
+If the voice BSA is present but voices are still silent on Proton, try the optional audio compatibility fix:
+
+```bash
+proton-vortex-skyrim-se audio-fix
+```
+
+That installs the `xact` audio component into Skyrim SE's Proton prefix using `protontricks` or `winetricks`. If the command says the tool is missing:
+
+```bash
+sudo apt install protontricks winetricks
+proton-vortex-skyrim-se audio-fix
 ```

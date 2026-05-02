@@ -175,9 +175,11 @@ bash uninstall.sh
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.
 - If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
 - The installer sets the Proton prefix Windows DPI to `120` percent-ish scaling so Vortex is not tiny on high-DPI Ubuntu desktops. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
-- The launcher also applies Electron UI scaling with `PROTON_VORTEX_SCALE=1.25`. If Vortex is still tiny, try `PROTON_VORTEX_SCALE=1.5 proton-vortex`; make it persistent with `PROTON_VORTEX_SCALE=1.5 bash install.sh`.
+- The launcher also applies Electron UI scaling with `PROTON_VORTEX_SCALE=1.5`, which is 150%. Override it with `PROTON_VORTEX_SCALE=1.25 proton-vortex`, or disable with `PROTON_VORTEX_SCALE=0 proton-vortex`.
 - If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
+- If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
+- If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
 - The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
 
@@ -190,6 +192,8 @@ bash uninstall.sh
 - Vortex releases: <https://github.com/Nexus-Mods/Vortex/releases>
 - SKSE official downloads and install notes: <https://skse.silverlock.org/>
 - SKSE64 Nexus page install notes: <https://www.nexusmods.com/skyrimspecialedition/mods/30379>
+- SteamDB Skyrim SE depot file listing, including `Skyrim - Voices_en0.bsa`: <https://steamdb.info/depot/489831/>
+- Ask Ubuntu Proton voice-audio discussion mentioning the `xact` workaround: <https://askubuntu.com/questions/1211219/skyrim-special-edition-voices-not-working-steam-play-wine-and-xact-what-is-go>
 - Nexus Collections overview: <https://www.nexusmods.com/collections>
 - Nexus API client docs, including download links and NXM key/expires behavior: <https://github.com/Nexus-Mods/node-nexus-api>
 - Nexus API acceptable use policy: <https://help.nexusmods.com/article/114-api-acceptable-use-policy>

@@ -64,9 +64,9 @@ When Skyrim SE is found, the launcher records Vortex game id `skyrimse` and uses
 
 ## Vortex UI Scale
 
-The installer sets Windows DPI inside the Proton prefix to `120` so Vortex is less tiny on Ubuntu high-DPI desktops.
+The installer sets Windows DPI inside the Proton prefix to `120` and launches Vortex with Electron scale `1.5` so Vortex is less tiny on Ubuntu high-DPI desktops.
 
-For bigger UI:
+To force the default 150% UI scale:
 
 ```bash
 PROTON_VORTEX_SCALE=1.5 bash install.sh
@@ -132,6 +132,7 @@ If Vortex downloaded mods but Skyrim did not change:
 ```bash
 proton-vortex preflight
 proton-vortex-skyrim-se diagnose
+proton-vortex-skyrim-se deployment
 ```
 
 Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
@@ -210,6 +211,19 @@ To verify SKSE in-game, launch through `proton-vortex-skyrim-se launch-skse`, op
 
 ```text
 getskseversion
+```
+
+If character voices are silent but other audio works:
+
+```bash
+proton-vortex-skyrim-se audio-check
+```
+
+If the voice BSA files are present but voices are still silent, try the optional Proton audio fix:
+
+```bash
+sudo apt install protontricks winetricks
+proton-vortex-skyrim-se audio-fix
 ```
 
 ## NXM Links

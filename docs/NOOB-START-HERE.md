@@ -35,7 +35,7 @@ Do this once in Steam:
 
 The installer will pick Proton Experimental or the newest official Steam Proton it can find. It should not choose an old GE-Proton 9 just because that happens to be installed.
 
-If Vortex looks tiny, rerun:
+Vortex defaults to 150% UI scale. If Vortex still looks tiny, rerun:
 
 ```bash
 PROTON_VORTEX_SCALE=1.5 bash install.sh
@@ -184,6 +184,12 @@ If Vortex downloaded mods but Skyrim still looks vanilla:
 4. Click **Deploy Mods**
 5. Launch with `proton-vortex-skyrim-se launch-skse`
 
+Then run:
+
+```bash
+proton-vortex-skyrim-se deployment
+```
+
 If Vortex shows two Skyrims, run:
 
 ```bash
@@ -191,6 +197,18 @@ proton-vortex doctor
 ```
 
 Use the Skyrim entry in Vortex whose game path matches the printed `Skyrim Vortex path hint`. Do not delete the entry with your downloaded mods until the correct Skyrim deploys successfully.
+
+If character voices are missing but other sounds work:
+
+```bash
+proton-vortex-skyrim-se audio-check
+```
+
+If it says voice archives are present, try:
+
+```bash
+proton-vortex-skyrim-se audio-fix
+```
 
 For current Steam Skyrim Special Edition, use the default SKSE install. If you intentionally downgraded Skyrim to `1.5.97`, run:
 

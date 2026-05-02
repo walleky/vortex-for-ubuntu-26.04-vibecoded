@@ -255,6 +255,128 @@ skse_status() {
   find "$game_dir" -maxdepth 1 -type f -name 'skse64_*.dll' -printf 'SKSE dll:    %f\n' 2>/dev/null | sort || true
 }
 
+find_plugins_txt() {
+  local compat_data="$1"
+  local user_dir
+  local candidates=(
+    "$compat_data/pfx/drive_c/users/steamuser/AppData/Local/Skyrim Special Edition/plugins.txt"
+    "$compat_data/pfx/drive_c/users/$USER/AppData/Local/Skyrim Special Edition/plugins.txt"
+  )
+
+  for user_dir in "$compat_data"/pfx/drive_c/users/*/AppData/Local/Skyrim\ Special\ Edition/plugins.txt; do
+    candidates+=("$user_dir")
+  done
+
+  for user_dir in "${candidates[@]}"; do
+    if [[ -f "$user_dir" ]]; then
+      printf '%s\n' "$user_dir"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+count_data_plugins() {
+  local data_dir="$1"
+  [[ -d "$data_dir" ]] || { printf '0\n'; return 0; }
+  find "$data_dir" -maxdepth 1 -type f \( -iname '*.esm' -o -iname '*.esp' -o -iname '*.esl' \) 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+count_enabled_plugins_txt() {
+  local plugins_txt="$1"
+  [[ -f "$plugins_txt" ]] || { printf '0\n'; return 0; }
+  grep -E '^\*.*\.(esm|esp|esl)$' "$plugins_txt" 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+voice_archive_count() {
+  local data_dir="$1"
+  [[ -d "$data_dir" ]] || { printf '0\n'; return 0; }
+  find "$data_dir" -maxdepth 1 -type f -iname 'Skyrim - Voices*.bsa' 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+deployment_status() {
+  local game_dir
+  local compat_data
+  local data_dir
+  local plugins_txt=""
+  local data_plugins
+  local enabled_plugins
+  local voices
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  data_dir="$game_dir/Data"
+
+  say "Skyrim SE deployment/audio check"
+  say "  game dir:   $game_dir"
+  say "  data dir:   $data_dir"
+  say "  prefix:     $compat_data"
+
+  if [[ -d "$data_dir" ]]; then
+    say "  Data folder: present"
+  else
+    say "  Data folder: missing"
+    say "  Fix: run Skyrim once from Steam, then rerun bash install.sh"
+    return 1
+  fi
+
+  voices="$(voice_archive_count "$data_dir")"
+  if [[ "$voices" != "0" ]]; then
+    say "  voice BSA:  present ($voices)"
+    find "$data_dir" -maxdepth 1 -type f -iname 'Skyrim - Voices*.bsa' -printf '    %f\n' 2>/dev/null | sort
+  else
+    say "  voice BSA:  missing"
+    say "  Fix: in Steam, verify Skyrim Special Edition files and check the game language."
+  fi
+
+  [[ -f "$data_dir/Skyrim - Sounds.bsa" ]] && say "  sounds BSA: present" || say "  sounds BSA: missing"
+
+  data_plugins="$(count_data_plugins "$data_dir")"
+  say "  plugin files in Data: $data_plugins"
+
+  if plugins_txt="$(find_plugins_txt "$compat_data")"; then
+    enabled_plugins="$(count_enabled_plugins_txt "$plugins_txt")"
+    say "  plugins.txt: $plugins_txt"
+    say "  enabled plugins in plugins.txt: $enabled_plugins"
+  else
+    say "  plugins.txt: not found"
+    say "  Fix: launch Skyrim once, then deploy in Vortex."
+  fi
+
+  if [[ "${data_plugins:-0}" -le 5 ]]; then
+    say "  note: Data has few plugin files. This can be normal for texture-only mods, but if you expected plugins, Vortex may not have deployed them."
+  fi
+
+  say ""
+  say "Vortex checklist:"
+  say "  1. Use the Skyrim entry matching: Z:${game_dir//\//\\}"
+  say "  2. Mods tab: Installed and Enabled"
+  say "  3. Plugins tab: plugins Enabled"
+  say "  4. Click Deploy Mods"
+  say "  5. Launch: proton-vortex-skyrim-se launch-skse"
+}
+
+audio_fix() {
+  local game_dir
+  local compat_data
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  [[ -d "$compat_data/pfx" ]] || die "Proton prefix missing at $compat_data/pfx. Run Skyrim once in Steam, then rerun this command."
+
+  say "This installs the xact audio component into Skyrim SE's Proton prefix."
+  say "It is meant for the Linux/Proton issue where music/effects work but NPC voices are silent."
+
+  if have protontricks; then
+    protontricks "$SKYRIM_APP_ID" xact
+  elif have winetricks; then
+    WINEPREFIX="$compat_data/pfx" winetricks --force xact
+  else
+    die "Install protontricks or winetricks first. On Ubuntu try: sudo apt install protontricks winetricks"
+  fi
+}
+
 install_skse() {
   local flavor="${SKSE_FLAVOR:-ae}"
   local game_dir
@@ -310,6 +432,10 @@ diagnose() {
     say "  1. Launch: proton-vortex-skyrim-se launch-skse"
     say "  2. Open the Skyrim console with ~"
     say "  3. Run: getskseversion"
+    say ""
+    say "To check deployment/audio:"
+    say "  proton-vortex-skyrim-se deployment"
+    say "  proton-vortex-skyrim-se audio-check"
   else
     say "  game dir:    not found"
   fi
@@ -321,6 +447,9 @@ Usage:
   proton-vortex-skyrim-se install-skse
   proton-vortex-skyrim-se launch-skse
   proton-vortex-skyrim-se diagnose
+  proton-vortex-skyrim-se deployment
+  proton-vortex-skyrim-se audio-check
+  proton-vortex-skyrim-se audio-fix
 
 Environment:
   SKSE_FLAVOR=ae   Latest Steam Skyrim SE / AE executable, currently 1.6.1170
@@ -340,6 +469,12 @@ main() {
       ;;
     diagnose|status)
       diagnose
+      ;;
+    deployment|deploy-check|audio-check)
+      deployment_status
+      ;;
+    audio-fix|fix-audio|fix-voices)
+      audio_fix
       ;;
     --help|-h|help)
       usage
