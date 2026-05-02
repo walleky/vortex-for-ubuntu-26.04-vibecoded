@@ -31,7 +31,9 @@ Do this once in Steam:
 2. Install Skyrim Special Edition
 3. Run Skyrim once from Steam, then quit
 4. Search your Steam Library for `Proton`
-5. Install **Proton Experimental** or a recent normal Proton version
+5. Install **Proton Experimental** or the newest normal Proton version
+
+The installer will pick Proton Experimental or the newest official Steam Proton it can find. It should not choose an old GE-Proton 9 just because that happens to be installed.
 
 ## Install
 

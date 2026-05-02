@@ -24,17 +24,27 @@ STEAM_ROOT=/path/to/Steam bash install.sh
 
 The installer prefers:
 
-1. GE-Proton or Proton-GE, if installed
-2. Proton Experimental
-3. The newest Proton it can find
+1. `PROTON_PATH`, if you set it
+2. Proton Experimental, if installed
+3. The newest official numbered Steam Proton, such as Proton 10 or Proton 11 beta
+4. Proton Hotfix
+5. GE-Proton or Proton-GE, only as a fallback
 
 To force one:
 
 ```bash
-PROTON_PATH="$HOME/.steam/root/compatibilitytools.d/GE-Proton9-27" bash install.sh
+PROTON_PATH="$HOME/.steam/root/steamapps/common/Proton Experimental" bash install.sh
 ```
 
-`PROTON_PATH` should point to the directory that contains the `proton` executable.
+`PROTON_PATH` should point to the directory that contains the `proton` executable. You can also point it directly at the `proton` file.
+
+If you specifically prefer GE-Proton over official Steam Proton, run:
+
+```bash
+PROTON_PREFER_GE=1 bash install.sh
+```
+
+If the installer can only find an older Proton line like Proton 9, it will warn you and continue. Install Proton Experimental or the newest official Proton in Steam, then rerun `bash install.sh`.
 
 ## Skyrim SE Mode
 

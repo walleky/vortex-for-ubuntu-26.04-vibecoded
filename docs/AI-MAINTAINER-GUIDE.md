@@ -22,6 +22,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Main installer
 - Detects Linux, Steam, Proton, Skyrim SE
 - Rejects Flatpak Steam by default because host Proton cannot reliably use Flatpak's runtime
+- Prefers Proton Experimental/newest official Steam Proton before GE-Proton, unless `PROTON_PREFER_GE=1` or `PROTON_PATH` is set
 - Bootstraps the selected Proton prefix before Vortex install
 - Installs Vortex through Proton
 - Copies launchers/helpers
@@ -265,6 +266,13 @@ Proton not found:
 
 - User has not installed Proton in Steam
 - Tell them to install Proton Experimental
+
+Old Proton selected:
+
+- The installer should prefer Proton Experimental or the newest official numbered Proton
+- GE-Proton is fallback by default because stale GE-Proton9 installs caused old-prefix choices
+- User can force a specific tool with `PROTON_PATH=/path/to/Proton bash install.sh`
+- User can intentionally prefer GE with `PROTON_PREFER_GE=1 bash install.sh`
 
 NXM does nothing:
 

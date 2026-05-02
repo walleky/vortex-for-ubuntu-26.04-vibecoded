@@ -48,7 +48,9 @@ Before running this, open Steam once and install a Proton tool:
 
 1. Steam > Library
 2. Search for `Proton`
-3. Install **Proton Experimental** or a current stable Proton version
+3. Install **Proton Experimental** or the newest official stable Proton version
+
+The installer prefers Proton Experimental or the newest official Steam Proton. It will not prefer an older GE-Proton 9 install unless you explicitly set `PROTON_PREFER_GE=1` or `PROTON_PATH`.
 
 ## Install
 

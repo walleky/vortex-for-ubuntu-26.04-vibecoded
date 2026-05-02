@@ -124,10 +124,6 @@ collect_proton_bins() {
     search_roots+=("$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam/compatibilitytools.d")
   fi
 
-  if [[ -n "${PROTON_PATH:-}" && -x "$PROTON_PATH/proton" ]]; then
-    printf '%s\n' "$PROTON_PATH/proton"
-  fi
-
   for root in "${search_roots[@]}"; do
     if [[ -d "$root" ]]; then
       find "$root" -maxdepth 3 -type f -name proton -perm -u+x 2>/dev/null
@@ -135,11 +131,40 @@ collect_proton_bins() {
   done
 }
 
+proton_tool_name() {
+  basename -- "$(dirname -- "$1")"
+}
+
+select_latest_proton_bin() {
+  local bin
+  for bin in "$@"; do
+    printf '%s\t%s\n' "$(proton_tool_name "$bin")" "$bin"
+  done | sort -V -k1,1 | tail -n 1 | cut -f2-
+}
+
 choose_proton_dir() {
   local steam_root="$1"
   local proton_bins=()
   local bin
+  local name
   local selected=""
+  local experimental=()
+  local official=()
+  local hotfix=()
+  local ge=()
+  local other=()
+
+  if [[ -n "${PROTON_PATH:-}" ]]; then
+    if [[ -x "$PROTON_PATH/proton" ]]; then
+      cd "$PROTON_PATH" && pwd -P
+      return 0
+    fi
+    if [[ -x "$PROTON_PATH" && "$(basename -- "$PROTON_PATH")" == "proton" ]]; then
+      cd "$(dirname -- "$PROTON_PATH")" && pwd -P
+      return 0
+    fi
+    die "PROTON_PATH is set but does not point to a Proton directory or proton executable: $PROTON_PATH"
+  fi
 
   mapfile -t proton_bins < <(collect_proton_bins "$steam_root" | awk '!seen[$0]++')
 
@@ -148,28 +173,70 @@ choose_proton_dir() {
   fi
 
   for bin in "${proton_bins[@]}"; do
-    case "$bin" in
-      *GE-Proton*/*|*Proton-GE*/*)
-        selected="$bin"
+    name="$(proton_tool_name "$bin")"
+    case "$name" in
+      *"Proton Experimental"*|*"Proton - Experimental"*)
+        experimental+=("$bin")
+        ;;
+      *"Proton Hotfix"*)
+        hotfix+=("$bin")
+        ;;
+      GE-Proton*|Proton-GE*|*GE-Proton*|*Proton-GE*)
+        ge+=("$bin")
+        ;;
+      Proton\ [0-9]*|Proton-[0-9]*|proton-[0-9]*)
+        official+=("$bin")
+        ;;
+      *Proton*|*proton*)
+        other+=("$bin")
         ;;
     esac
   done
 
-  if [[ -z "$selected" ]]; then
-    for bin in "${proton_bins[@]}"; do
-      case "$bin" in
-        *"Proton Experimental"/*)
-          selected="$bin"
-          ;;
-      esac
-    done
+  if [[ "${PROTON_PREFER_GE:-0}" == "1" && ${#ge[@]} -gt 0 ]]; then
+    selected="$(select_latest_proton_bin "${ge[@]}")"
+  elif ((${#experimental[@]} > 0)); then
+    selected="$(select_latest_proton_bin "${experimental[@]}")"
+  elif ((${#official[@]} > 0)); then
+    selected="$(select_latest_proton_bin "${official[@]}")"
+  elif ((${#hotfix[@]} > 0)); then
+    selected="$(select_latest_proton_bin "${hotfix[@]}")"
+  elif ((${#ge[@]} > 0)); then
+    selected="$(select_latest_proton_bin "${ge[@]}")"
+  elif ((${#other[@]} > 0)); then
+    selected="$(select_latest_proton_bin "${other[@]}")"
   fi
 
   if [[ -z "$selected" ]]; then
-    selected="$(printf '%s\n' "${proton_bins[@]}" | sort -V | tail -n 1)"
+    selected="$(select_latest_proton_bin "${proton_bins[@]}")"
   fi
 
-  dirname "$selected"
+  cd "$(dirname -- "$selected")" && pwd -P
+}
+
+proton_major_version() {
+  local name="$1"
+  if [[ "$name" =~ ([0-9]+) ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  else
+    printf '0\n'
+  fi
+}
+
+warn_if_old_proton() {
+  local proton_dir="$1"
+  local min_major="${PROTON_MIN_MAJOR:-10}"
+  local name
+  local major
+
+  name="$(basename -- "$proton_dir")"
+  major="$(proton_major_version "$name")"
+
+  if [[ "$major" != "0" && "$major" -lt "$min_major" ]]; then
+    say "Warning: selected Proton looks old: $name"
+    say "For Skyrim SE, install Proton Experimental or the newest official Proton in Steam, then rerun install.sh."
+    say "You can force a specific Proton with PROTON_PATH=/path/to/Proton bash install.sh."
+  fi
 }
 
 steam_libraries() {
@@ -490,6 +557,7 @@ main() {
   fi
 
   PROTON_DIR="$(choose_proton_dir "$STEAM_ROOT")"
+  warn_if_old_proton "$PROTON_DIR"
   SKYRIM_SE_GAME_DIR=""
   SKYRIM_SE_LIBRARY_ROOT=""
   SKYRIM_SE_COMPAT_DATA=""
