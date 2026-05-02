@@ -25,6 +25,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Prefers Proton Experimental/newest official Steam Proton before GE-Proton, unless `PROTON_PREFER_GE=1` or `PROTON_PATH` is set
 - Bootstraps the selected Proton prefix before Vortex install
 - Writes Vortex UI DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`
+- Stores `PROTON_VORTEX_SCALE`, which the launcher passes to Electron as a scale factor
 - Installs Vortex through Proton
 - Copies launchers/helpers
 - Writes desktop files
@@ -45,6 +46,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Provides `doctor`, `doctor --fix`, `linked`, `preflight`, `last-log`, and `self-update`
 - Runs Vortex through Proton
 - Keeps plain `doctor` read-only; put state repair in `doctor --fix`
+- Prints the expected Skyrim path and Proton `Z:\...` path hint so users can identify duplicate Vortex game entries
 
 `scripts/mod-intake.py`
 
@@ -328,6 +330,18 @@ Mods downloaded but not active:
 - Click **Deploy Mods**
 - Launch with `proton-vortex-skyrim-se launch-skse`
 - Run `proton-vortex preflight` to check prefix and staging placement
+
+Two Skyrim entries in Vortex:
+
+- Run `proton-vortex doctor`
+- Manage the Skyrim entry whose path matches `Skyrim Vortex path hint`
+- Do not tell users to delete the modded entry until deployment works from the correct game
+
+Tiny or choppy Vortex UI:
+
+- Try `PROTON_VORTEX_SCALE=1.5 proton-vortex`
+- Persist with `PROTON_VORTEX_SCALE=1.5 bash install.sh`
+- Try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex` for blank/choppy Electron rendering
 
 Need to force SKSE during wrapper install:
 

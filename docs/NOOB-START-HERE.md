@@ -38,7 +38,7 @@ The installer will pick Proton Experimental or the newest official Steam Proton 
 If Vortex looks tiny, rerun:
 
 ```bash
-PROTON_VORTEX_DPI=144 bash install.sh
+PROTON_VORTEX_SCALE=1.5 bash install.sh
 ```
 
 If Vortex is choppy or blank, try:
@@ -183,6 +183,14 @@ If Vortex downloaded mods but Skyrim still looks vanilla:
 3. Open the Plugins tab and enable the plugins
 4. Click **Deploy Mods**
 5. Launch with `proton-vortex-skyrim-se launch-skse`
+
+If Vortex shows two Skyrims, run:
+
+```bash
+proton-vortex doctor
+```
+
+Use the Skyrim entry in Vortex whose game path matches the printed `Skyrim Vortex path hint`. Do not delete the entry with your downloaded mods until the correct Skyrim deploys successfully.
 
 For current Steam Skyrim Special Edition, use the default SKSE install. If you intentionally downgraded Skyrim to `1.5.97`, run:
 

@@ -86,6 +86,9 @@ if [[ -r "$CONFIG_FILE" ]]; then
   if [[ -n "${PROTON_VORTEX_DPI:-}" ]]; then
     ok "Vortex UI DPI setting: $PROTON_VORTEX_DPI"
   fi
+  if [[ -n "${PROTON_VORTEX_SCALE:-}" ]]; then
+    ok "Vortex Electron scale factor: $PROTON_VORTEX_SCALE"
+  fi
   if [[ -n "${SKYRIM_SE_COMPAT_DATA:-}" && -n "${COMPAT_DATA:-}" && "$COMPAT_DATA" == "$SKYRIM_SE_COMPAT_DATA" ]]; then
     ok "Vortex and Skyrim SE share Proton prefix"
   else
@@ -123,6 +126,8 @@ printf "\nRepair/preflight:\n"
 printf "  proton-vortex doctor --fix\n"
 printf "  proton-vortex linked\n"
 printf "  proton-vortex preflight\n"
+printf "  If Vortex is tiny: PROTON_VORTEX_SCALE=1.5 proton-vortex\n"
+printf "  If Vortex is choppy/blank: PROTON_VORTEX_DISABLE_GPU=1 proton-vortex\n"
 printf "\nSKSE and deployment:\n"
 printf "  proton-vortex-skyrim-se install-skse\n"
 printf "  proton-vortex-skyrim-se launch-skse\n"

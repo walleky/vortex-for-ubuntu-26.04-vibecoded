@@ -175,7 +175,9 @@ bash uninstall.sh
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.
 - If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
 - The installer sets the Proton prefix Windows DPI to `120` percent-ish scaling so Vortex is not tiny on high-DPI Ubuntu desktops. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
+- The launcher also applies Electron UI scaling with `PROTON_VORTEX_SCALE=1.25`. If Vortex is still tiny, try `PROTON_VORTEX_SCALE=1.5 proton-vortex`; make it persistent with `PROTON_VORTEX_SCALE=1.5 bash install.sh`.
 - If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
+- If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - For Bethesda games, make sure the game itself is set to run with Proton in Steam, not the native Linux build.
 - The SKSE helper defaults to the current Steam/AE build. If you intentionally downgraded Skyrim SE to `1.5.97`, run `SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse`.
 

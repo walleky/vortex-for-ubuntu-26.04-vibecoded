@@ -173,6 +173,8 @@ getskseversion
 
 If Vortex downloaded mods but the game looks unchanged, Vortex still needs the normal deployment chain: installed mods, enabled mods, enabled plugins, then **Deploy Mods**.
 
+If Vortex shows two Skyrim entries, use `proton-vortex doctor` to print the expected Linux path and Proton `Z:\...` path hint. The Vortex-managed Skyrim entry should match that path.
+
 ## Data Locations
 
 Main config:

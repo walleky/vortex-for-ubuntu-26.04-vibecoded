@@ -69,10 +69,22 @@ The installer sets Windows DPI inside the Proton prefix to `120` so Vortex is le
 For bigger UI:
 
 ```bash
-PROTON_VORTEX_DPI=144 bash install.sh
+PROTON_VORTEX_SCALE=1.5 bash install.sh
 ```
 
-To disable the DPI tweak:
+For a one-off bigger launch:
+
+```bash
+PROTON_VORTEX_SCALE=1.5 proton-vortex
+```
+
+To disable the Electron scale factor:
+
+```bash
+PROTON_VORTEX_SCALE=0 proton-vortex
+```
+
+To disable the Windows DPI tweak:
 
 ```bash
 PROTON_VORTEX_DPI=0 bash install.sh
@@ -123,6 +135,14 @@ proton-vortex-skyrim-se diagnose
 ```
 
 Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
+
+If Vortex shows two Skyrim entries, the active one may point at the wrong discovered game path. Run:
+
+```bash
+proton-vortex doctor
+```
+
+Then manage the Skyrim entry whose Vortex game path matches the printed `Skyrim Vortex path hint`.
 
 If this project was installed from a git clone:
 

@@ -50,6 +50,9 @@ prune_logs() {
 }
 
 load_config() {
+  local env_disable_gpu="${PROTON_VORTEX_DISABLE_GPU:-}"
+  local env_scale="${PROTON_VORTEX_SCALE:-}"
+
   if [[ ! -r "$CONFIG_FILE" ]]; then
     die "Config not found at $CONFIG_FILE. Run install.sh first."
   fi
@@ -62,12 +65,18 @@ load_config() {
   fi
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
   VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
-  PROTON_VORTEX_DISABLE_GPU="${PROTON_VORTEX_DISABLE_GPU:-0}"
+  PROTON_VORTEX_DISABLE_GPU="${env_disable_gpu:-${PROTON_VORTEX_DISABLE_GPU:-0}}"
+  PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.25}}"
   INSTALL_SOURCE_DIR="${INSTALL_SOURCE_DIR:-}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
     die "Proton executable not found at $PROTON_DIR/proton. Rerun install.sh or update $CONFIG_FILE."
   fi
+}
+
+linux_path_to_windows_hint() {
+  local path="$1"
+  printf 'Z:%s\n' "$path" | sed 's#/#\\#g'
 }
 
 require_prefix() {
@@ -107,6 +116,13 @@ run_vortex() {
 
   if [[ "$PROTON_VORTEX_DISABLE_GPU" == "1" ]]; then
     electron_flags+=(--disable-gpu --disable-gpu-compositing)
+  fi
+  if [[ -n "${PROTON_VORTEX_SCALE:-}" && "$PROTON_VORTEX_SCALE" != "0" ]]; then
+    if [[ "$PROTON_VORTEX_SCALE" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+      electron_flags+=(--high-dpi-support=1 --force-device-scale-factor="$PROTON_VORTEX_SCALE")
+    else
+      say_err "Warning: PROTON_VORTEX_SCALE must be a number or 0; got '$PROTON_VORTEX_SCALE'."
+    fi
   fi
 
   mkdir -p "$LOG_DIR"
@@ -190,6 +206,7 @@ print_info() {
   fi
   say "  proton app id: ${PROTON_APP_ID:-0}"
   say "  disable gpu:   $PROTON_VORTEX_DISABLE_GPU"
+  say "  ui scale:      ${PROTON_VORTEX_SCALE:-1.25}"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
   say "  logs:          $LOG_DIR"
@@ -272,6 +289,7 @@ doctor() {
 
   if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -f "$SKYRIM_SE_GAME_DIR/SkyrimSE.exe" ]]; then
     ok "Skyrim SE: $SKYRIM_SE_GAME_DIR"
+    ok "Skyrim Vortex path hint: $(linux_path_to_windows_hint "$SKYRIM_SE_GAME_DIR")"
     [[ -d "$SKYRIM_SE_GAME_DIR/Data" ]] && ok "Skyrim Data folder: $SKYRIM_SE_GAME_DIR/Data" || { warn "Skyrim Data folder missing. Run Skyrim once from Steam, then rerun install.sh."; status=1; }
     if [[ -f "$SKYRIM_SE_GAME_DIR/skse64_loader.exe" ]]; then
       ok "SKSE loader: $SKYRIM_SE_GAME_DIR/skse64_loader.exe"
@@ -342,6 +360,7 @@ doctor() {
   say "  - Vortex should manage Skyrim Special Edition."
   say "  - Use Hardlink Deployment when Vortex asks."
   say "  - In Vortex, downloaded mods still need Installed, Enabled, Plugins enabled, then Deploy Mods."
+  say "  - If Vortex shows two Skyrims, manage the one whose path matches the Skyrim Vortex path hint above."
   say "  - Nexus Free accounts may still require manual collection download clicks."
   if ((linked == 1)); then
     say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"
