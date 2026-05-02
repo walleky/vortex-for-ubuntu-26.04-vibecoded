@@ -37,6 +37,19 @@ The prefix is usually:
 
 When Skyrim SE is found, this project installs/runs Vortex in that same prefix. That means Vortex, Skyrim, SKSE, and many Windows modding tools see the same fake Windows environment.
 
+## How Vortex Passes Mods To Skyrim
+
+Vortex downloads a mod archive, unpacks it into a staging folder, and then deploys the files into Skyrim's game folder. For Bethesda games, Vortex normally uses hardlinks. A hardlink makes the file appear inside Skyrim's `Data` folder while the managed copy still lives in Vortex's staging area.
+
+The practical rule is: Vortex's Skyrim SE staging folder must be on the same filesystem/partition as the Skyrim SE folder. This wrapper defaults to Skyrim's own Proton compatdata folder, which normally sits beside the Steam library where Skyrim is installed:
+
+```text
+<Steam Library>/steamapps/compatdata/489830
+<Steam Library>/steamapps/common/Skyrim Special Edition
+```
+
+That is why using Skyrim's prefix matters. It gives Vortex a Windows-looking home while keeping the staging area close enough to Skyrim for hardlink deployment.
+
 ## What Happens During Install
 
 `install.sh` does this:
@@ -156,6 +169,21 @@ Main config:
 
 ```text
 ~/.local/share/proton-vortex/config.env
+```
+
+Logs:
+
+```text
+~/.local/share/proton-vortex/logs
+```
+
+Doctor/preflight:
+
+```bash
+proton-vortex doctor
+proton-vortex doctor --fix
+proton-vortex preflight
+proton-vortex last-log
 ```
 
 Nexus API key:

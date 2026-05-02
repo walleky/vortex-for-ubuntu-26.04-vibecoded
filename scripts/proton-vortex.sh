@@ -7,14 +7,32 @@ DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 APP_HOME="$DATA_HOME/$APP_ID"
 CONFIG_FILE="$APP_HOME/config.env"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
+LOG_DIR="$APP_HOME/logs"
+NXM_DESKTOP="$DATA_HOME/applications/proton-vortex-nxm.desktop"
 
 say() {
   printf '%s\n' "$*"
 }
 
+say_err() {
+  printf '%s\n' "$*" >&2
+}
+
 die() {
   printf 'Error: %s\n' "$*" >&2
   exit 1
+}
+
+ok() {
+  printf '[ok] %s\n' "$*"
+}
+
+warn() {
+  printf '[warn] %s\n' "$*"
+}
+
+fail() {
+  printf '[fail] %s\n' "$*"
 }
 
 load_config() {
@@ -31,6 +49,7 @@ load_config() {
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
   VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
   PROTON_VORTEX_DISABLE_GPU="${PROTON_VORTEX_DISABLE_GPU:-0}"
+  INSTALL_SOURCE_DIR="${INSTALL_SOURCE_DIR:-}"
 
   if [[ ! -x "$PROTON_DIR/proton" ]]; then
     die "Proton executable not found at $PROTON_DIR/proton. Rerun install.sh or update $CONFIG_FILE."
@@ -69,16 +88,30 @@ run_vortex() {
   local vortex_exe="$1"
   shift
   local electron_flags=()
+  local log_file
+  local status
 
   if [[ "$PROTON_VORTEX_DISABLE_GPU" == "1" ]]; then
     electron_flags+=(--disable-gpu --disable-gpu-compositing)
   fi
 
+  mkdir -p "$LOG_DIR"
+  log_file="$LOG_DIR/vortex-$(date +%Y%m%d-%H%M%S).log"
+  say_err "Vortex log: $log_file"
+
+  set +e
   STEAM_COMPAT_DATA_PATH="$COMPAT_DATA" \
   STEAM_COMPAT_CLIENT_INSTALL_PATH="$STEAM_ROOT" \
   STEAM_COMPAT_APP_ID="$PROTON_APP_ID" \
   SteamAppId="$PROTON_APP_ID" \
-  "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "${electron_flags[@]}" "$@"
+  "$PROTON_DIR/proton" waitforexitandrun "$vortex_exe" "${electron_flags[@]}" "$@" >>"$log_file" 2>&1
+  status=$?
+  set -e
+
+  if ((status != 0)); then
+    say_err "Vortex exited with code $status. See log: $log_file"
+  fi
+  return "$status"
 }
 
 run_intake() {
@@ -127,6 +160,7 @@ print_info() {
 
   say "Proton Vortex"
   say "  app home:      $APP_HOME"
+  say "  install src:   ${INSTALL_SOURCE_DIR:-unknown}"
   say "  config:        $CONFIG_FILE"
   say "  steam root:    $STEAM_ROOT"
   say "  proton:        $PROTON_DIR"
@@ -142,10 +176,145 @@ print_info() {
   say "  disable gpu:   $PROTON_VORTEX_DISABLE_GPU"
   say "  vortex exe:    ${vortex_exe:-not found}"
   say "  intake helper: $INTAKE_HELPER"
+  say "  logs:          $LOG_DIR"
 
   if command -v xdg-mime >/dev/null 2>&1; then
     say "  nxm handler:   $(xdg-mime query default x-scheme-handler/nxm || true)"
   fi
+}
+
+vortex_roaming_dir() {
+  local pfx="$COMPAT_DATA/pfx"
+  local candidate
+  local candidates=(
+    "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+    "$pfx/drive_c/users/$USER/AppData/Roaming/Vortex"
+  )
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -d "$(dirname -- "$candidate")" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$pfx/drive_c/users/steamuser/AppData/Roaming/Vortex"
+}
+
+ensure_support_dirs() {
+  local roaming
+
+  mkdir -p "$LOG_DIR" "$APP_HOME/downloads/external" "$APP_HOME/downloads/nexus"
+
+  if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    roaming="$(vortex_roaming_dir)"
+    mkdir -p "$roaming/downloads"
+    if [[ -n "$VORTEX_GAME_ID" ]]; then
+      mkdir -p "$roaming/$VORTEX_GAME_ID/mods" "$roaming/$VORTEX_GAME_ID/profiles"
+    fi
+  fi
+}
+
+same_device() {
+  local left="$1"
+  local right="$2"
+  [[ -e "$left" && -e "$right" ]] || return 1
+  [[ "$(stat -c %d "$left" 2>/dev/null)" == "$(stat -c %d "$right" 2>/dev/null)" ]]
+}
+
+doctor() {
+  local fix="${1:-}"
+  local status=0
+  local vortex_exe=""
+  local handler=""
+  local roaming=""
+  local staging=""
+  local free_space=""
+
+  if [[ "$fix" == "--fix" ]]; then
+    ensure_support_dirs
+    if command -v xdg-mime >/dev/null 2>&1 && [[ -f "$NXM_DESKTOP" ]]; then
+      xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm || true
+      xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm-protocol || true
+    fi
+    if command -v update-desktop-database >/dev/null 2>&1; then
+      update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  say "Proton Vortex doctor"
+
+  [[ -r "$CONFIG_FILE" ]] && ok "config: $CONFIG_FILE" || { fail "config missing: $CONFIG_FILE"; status=1; }
+  [[ -x "$PROTON_DIR/proton" ]] && ok "proton: $PROTON_DIR" || { fail "proton missing: $PROTON_DIR/proton"; status=1; }
+  [[ -d "$COMPAT_DATA/pfx/drive_c" ]] && ok "prefix: $COMPAT_DATA/pfx" || { fail "prefix missing: $COMPAT_DATA/pfx"; status=1; }
+
+  vortex_exe="$(find_vortex_exe || true)"
+  [[ -n "$vortex_exe" ]] && ok "Vortex.exe: $vortex_exe" || { fail "Vortex.exe not found; rerun bash install.sh"; status=1; }
+
+  if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -f "$SKYRIM_SE_GAME_DIR/SkyrimSE.exe" ]]; then
+    ok "Skyrim SE: $SKYRIM_SE_GAME_DIR"
+  else
+    warn "Skyrim SE not detected in config. Install/run Skyrim in Steam, then rerun bash install.sh."
+    status=1
+  fi
+
+  [[ "${VORTEX_GAME_ID:-}" == "skyrimse" ]] && ok "Vortex game id: skyrimse" || warn "Vortex game id is '${VORTEX_GAME_ID:-not set}', expected skyrimse."
+
+  if command -v xdg-mime >/dev/null 2>&1; then
+    handler="$(xdg-mime query default x-scheme-handler/nxm || true)"
+    [[ "$handler" == "proton-vortex-nxm.desktop" ]] && ok "nxm handler: $handler" || { warn "nxm handler is '${handler:-unset}'. Run: proton-vortex doctor --fix"; status=1; }
+  else
+    warn "xdg-mime missing; browser NXM links cannot be checked."
+    status=1
+  fi
+
+  ensure_support_dirs
+  ok "logs: $LOG_DIR"
+
+  if [[ -n "$VORTEX_GAME_ID" && -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+    roaming="$(vortex_roaming_dir)"
+    staging="$roaming/$VORTEX_GAME_ID/mods"
+    [[ -d "$staging" ]] && ok "suggested staging folder: $staging" || warn "suggested staging folder missing: $staging"
+    if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" && -d "$staging" ]]; then
+      if same_device "$SKYRIM_SE_GAME_DIR" "$staging"; then
+        ok "staging and Skyrim are on the same filesystem"
+      else
+        warn "staging and Skyrim appear to be on different filesystems; Vortex hardlink deployment may fail."
+        status=1
+      fi
+    fi
+  fi
+
+  if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" ]]; then
+    free_space="$(df -h "$SKYRIM_SE_GAME_DIR" 2>/dev/null | awk 'NR==2 {print $4}')"
+    [[ -n "$free_space" ]] && ok "free space near Skyrim: $free_space"
+  fi
+
+  say ""
+  say "Collection preflight:"
+  say "  - Vortex must be logged into Nexus."
+  say "  - Vortex should manage Skyrim Special Edition."
+  say "  - Use Hardlink Deployment when Vortex asks."
+  say "  - Nexus Free accounts may still require manual collection download clicks."
+
+  return "$status"
+}
+
+show_last_log() {
+  local log_file
+  log_file="$(find "$LOG_DIR" -maxdepth 1 -type f -name 'vortex-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk 'NR==1 {$1=\"\"; sub(/^ /, \"\"); print}')"
+  [[ -n "$log_file" ]] || die "No Vortex logs found in $LOG_DIR"
+  say "$log_file"
+  tail -n "${PROTON_VORTEX_LOG_LINES:-80}" "$log_file"
+}
+
+self_update() {
+  if [[ -z "$INSTALL_SOURCE_DIR" || ! -d "$INSTALL_SOURCE_DIR/.git" ]]; then
+    die "Self-update needs a git clone source directory. Use: git pull && bash install.sh"
+  fi
+  command -v git >/dev/null 2>&1 || die "git is not installed."
+  git -C "$INSTALL_SOURCE_DIR" pull --ff-only
+  bash "$INSTALL_SOURCE_DIR/install.sh"
 }
 
 main() {
@@ -164,6 +333,11 @@ Usage:
   proton-vortex /path/to/mod.7z
   proton-vortex 'https://example.com/mod.zip'
   proton-vortex import /path/to/mod.zip
+  proton-vortex doctor
+  proton-vortex doctor --fix
+  proton-vortex preflight
+  proton-vortex last-log
+  proton-vortex self-update
   proton-vortex --print-info
 
 Normal Nexus NXM files are sent to Vortex's native download-and-install flow.
@@ -179,6 +353,23 @@ EOF_HELP
     api|nexus-api)
       shift
       python3 "$INTAKE_HELPER" api "$@"
+      return 0
+      ;;
+    doctor)
+      shift
+      doctor "${1:-}"
+      return $?
+      ;;
+    preflight)
+      doctor
+      return $?
+      ;;
+    last-log|logs)
+      show_last_log
+      return 0
+      ;;
+    self-update|update)
+      self_update
       return 0
       ;;
   esac
@@ -209,4 +400,6 @@ EOF_HELP
   fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

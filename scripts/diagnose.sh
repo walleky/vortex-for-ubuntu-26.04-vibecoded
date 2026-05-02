@@ -110,3 +110,7 @@ printf "  Click a Nexus Mods 'Mod Manager Download' button, then choose Vortex N
 printf "  Click a Nexus Mods collection 'Add Collection' button the same way.\n"
 printf "  From a terminal, quote the URL: proton-vortex 'nxm://...'\n"
 printf "  For non-Nexus archives: proton-vortex import /path/to/mod.zip\n"
+printf "\nRepair/preflight:\n"
+printf "  proton-vortex doctor --fix\n"
+printf "  proton-vortex preflight\n"
+printf "  proton-vortex last-log\n"

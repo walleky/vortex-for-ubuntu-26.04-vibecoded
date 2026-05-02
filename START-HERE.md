@@ -26,6 +26,7 @@ If something breaks:
 
 ```bash
 bash scripts/diagnose.sh
+proton-vortex doctor --fix
 ```
 
 For AI assistants or maintainers, read:

@@ -35,10 +35,13 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 
 - Main launcher installed as `~/.local/bin/proton-vortex`
 - Loads `~/.local/share/proton-vortex/config.env`
+- Can be sourced in Bash tests without running `main`
 - Finds `Vortex.exe`
 - Launches plain Vortex with `--game skyrimse` when Skyrim SE was detected
 - Delegates NXM/URL/archive intake to `mod-intake.py`
 - Passes local archives to Vortex as Proton-readable `file:///Z:/...` URLs
+- Captures Vortex/Proton stdout and stderr to `~/.local/share/proton-vortex/logs`
+- Provides `doctor`, `doctor --fix`, `preflight`, `last-log`, and `self-update`
 - Runs Vortex through Proton
 
 `scripts/mod-intake.py`
@@ -121,6 +124,14 @@ file:///Z:/home/user/file.7z
 ```
 
 Keep this contract stable unless every caller is updated.
+
+`proton-vortex doctor --fix` may repair only low-risk Linux-side integration:
+
+- Create support folders
+- Re-register `nxm://`
+- Refresh the desktop database
+
+Do not make it rewrite Vortex's internal state with `--set` unless the state path is verified against current Vortex.
 
 ## NXM Behavior
 
@@ -245,6 +256,8 @@ On a real Ubuntu machine with Steam installed, also run:
 ```bash
 bash install.sh
 bash scripts/diagnose.sh
+proton-vortex doctor
+proton-vortex preflight
 proton-vortex api-key status
 proton-vortex-skyrim-se diagnose
 xdg-mime query default x-scheme-handler/nxm

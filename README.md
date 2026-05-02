@@ -35,7 +35,8 @@ If you are an AI assistant or maintainer:
 - A file-manager **Import Mod with Vortex (Proton)** entry for common archive types
 - A terminal command named `proton-vortex`
 - A terminal command named `proton-vortex-skyrim-se`
-- A diagnostics script for checking the Proton path, Vortex executable, and MIME registration
+- A `proton-vortex doctor --fix` repair/preflight command
+- Saved Vortex run logs under `~/.local/share/proton-vortex/logs`
 
 ## Requirements
 
@@ -125,12 +126,25 @@ The helper downloads direct external archives into:
 
 Then it opens Vortex with a Proton-readable `file:///Z:/...` archive URL. For pages that are not direct archive URLs, use the browser/manual download first, then import the downloaded archive.
 
+## How Mods Reach Skyrim
+
+Vortex is still the Windows app. Proton makes it run on Ubuntu by giving it a fake Windows prefix. This wrapper installs Vortex into Skyrim SE's Steam Proton prefix, so Vortex and Skyrim see the same fake Windows user profile and the same Steam library.
+
+For Skyrim SE, Vortex stages unpacked mods under its `skyrimse` Vortex data folder, then deploys them into Skyrim's `Data` folder. Vortex normally uses hardlinks for this: files appear in the game folder without duplicating the full data. The important rule is that the staging folder and Skyrim folder must be on the same filesystem/partition. The default setup aims for that by using Skyrim's own compatdata folder.
+
+SKSE64 is handled directly by this wrapper because SKSE needs loader/DLL files beside `SkyrimSE.exe`.
+
 ## Commands
 
 ```bash
 proton-vortex
 proton-vortex 'nxm://example'
 proton-vortex import ~/Downloads/mod.7z
+proton-vortex doctor
+proton-vortex doctor --fix
+proton-vortex preflight
+proton-vortex last-log
+proton-vortex self-update
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se launch-skse
 bash scripts/diagnose.sh
@@ -154,6 +168,9 @@ bash uninstall.sh
 ## Sources
 
 - Vortex command-line support, including `--download` and `--install` for NXM URLs: <https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-Troubleshooting-Command-Line-Parameters>
+- Vortex Skyrim SE guide, including same-partition staging folder requirements: <https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-GameGuides-Modding-Skyrim-Special-Edition-with-Vortex>
+- Vortex deployment methods and hardlink requirements: <https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-General-Deployment-Methods>
+- Proton project, which explains Proton as Steam's Wine-based Windows compatibility tool: <https://github.com/ValveSoftware/Proton>
 - Vortex releases: <https://github.com/Nexus-Mods/Vortex/releases>
 - SKSE official downloads and install notes: <https://skse.silverlock.org/>
 - SKSE64 Nexus page install notes: <https://www.nexusmods.com/skyrimspecialedition/mods/30379>

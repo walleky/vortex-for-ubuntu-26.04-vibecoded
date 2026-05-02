@@ -84,6 +84,40 @@ If Vortex is blank or very choppy, try disabling Electron GPU acceleration for V
 PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 ```
 
+## Doctor And Logs
+
+Run:
+
+```bash
+proton-vortex doctor
+```
+
+To repair safe desktop-side issues:
+
+```bash
+proton-vortex doctor --fix
+```
+
+That creates support folders, refreshes the desktop database, and re-registers the `nxm://` handler.
+
+Before starting a large collection:
+
+```bash
+proton-vortex preflight
+```
+
+If Vortex crashes or behaves strangely:
+
+```bash
+proton-vortex last-log
+```
+
+If this project was installed from a git clone:
+
+```bash
+proton-vortex self-update
+```
+
 ## SKSE64
 
 The installer adds:

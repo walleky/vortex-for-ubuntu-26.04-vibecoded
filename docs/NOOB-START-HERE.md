@@ -47,6 +47,12 @@ If Vortex is choppy or blank, try:
 PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 ```
 
+To check and repair the setup:
+
+```bash
+proton-vortex doctor --fix
+```
+
 ## Install
 
 Open a terminal in this folder and run:
@@ -167,6 +173,8 @@ Common fixes:
 
 - If Nexus links do nothing, set **Vortex NXM Handler** as the default in your browser
 - If you are unsure Skyrim was detected, run `bash scripts/diagnose.sh` and look for `Skyrim SE detected`
+- If you are unsure a collection is safe to start, run `proton-vortex preflight`
+- If Vortex fails or closes, run `proton-vortex last-log`
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
