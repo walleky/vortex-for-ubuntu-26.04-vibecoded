@@ -148,6 +148,8 @@ The wrapper now creates a normal visible folder beside the Steam library, usuall
 
 Inside Vortex's old Windows file picker, use the prepared simple drive path printed by `proton-vortex-skyrim-se fix-staging`, usually `S:\VortexMods\skyrimse\mods`. Do not create folders at bare `Z:\`; in Proton, `Z:` is your whole Linux filesystem, and many places under it are not writable.
 
+If Vortex says the destination folder has to be empty, run `proton-vortex-skyrim-se empty-staging`. It creates a brand-new empty staging folder beside Skyrim, updates the helper path hints, and prints the exact `S:\...` path to use in Vortex. It does not delete the old staging folder.
+
 The wrapper also writes helper shortcuts into the Proton desktop:
 
 ```text
@@ -206,6 +208,7 @@ bash uninstall.sh
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
 - If Vortex says the mod staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`, then use the printed `S:\...` paths in Vortex.
+- If Vortex says the destination folder has to be empty, run `proton-vortex-skyrim-se empty-staging`, then use the fresh empty `S:\...` path it prints.
 - Vortex's own Play button may still use plain Skyrim unless Vortex has made SKSE primary. The always-correct launch path is `proton-vortex-skyrim-se launch-skse`, the **Skyrim SE SKSE (Proton)** icon, or the Vortex dock action **Launch Skyrim SE SKSE**.
 - If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
 - If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.

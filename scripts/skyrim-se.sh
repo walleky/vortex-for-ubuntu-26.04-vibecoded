@@ -207,6 +207,36 @@ vortex_prepared_downloads_dir() {
   printf '%s\n' "${VORTEX_DOWNLOADS_DIR:-$base/downloads}"
 }
 
+update_config_value() {
+  local key="$1"
+  local value="$2"
+  local quoted
+  local replacement
+  local tmp
+
+  [[ -r "$CONFIG_FILE" ]] || return 0
+  quoted="$(printf '%q' "$value")"
+  replacement="$key=$quoted"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/proton-vortex-config.XXXXXX")" || die "Could not create temporary config file."
+
+  awk -v key="$key" -v replacement="$replacement" '
+    BEGIN { done = 0 }
+    index($0, key "=") == 1 {
+      print replacement
+      done = 1
+      next
+    }
+    { print }
+    END {
+      if (done == 0) {
+        print replacement
+      }
+    }
+  ' "$CONFIG_FILE" >"$tmp"
+
+  mv "$tmp" "$CONFIG_FILE"
+}
+
 link_empty_or_missing_dir() {
   local link_path="$1"
   local target_path="$2"
@@ -784,9 +814,90 @@ fix_staging() {
   say "  Downloads Folder:   $downloads_win"
   say ""
   say "Do not create folders at bare Z:\\. In Proton, Z: is your whole Linux filesystem and many parts are not writable."
+  say "If Vortex says the destination folder has to be empty, run: proton-vortex-skyrim-se empty-staging"
   say "If Vortex already has a wrong Skyrim entry, manage the entry whose game folder matches the Game folder above."
   say ""
   hardlink_test "$staging_dir"
+}
+
+empty_staging() {
+  local game_dir
+  local library
+  local compat_data
+  local pfx
+  local dosdevices
+  local drive_link
+  local base_dir
+  local staging_parent
+  local staging_dir
+  local downloads_dir
+  local game_win
+  local staging_win
+  local downloads_win
+  local test_file
+  local stamp
+  local suffix=""
+  local attempt=0
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  pfx="$compat_data/pfx"
+  [[ -d "$pfx/drive_c" ]] || die "Proton prefix missing at $pfx. Run Skyrim once from Steam, then rerun bash install.sh."
+
+  base_dir="$(vortex_base_dir_for_library "$library")"
+  staging_parent="$base_dir/skyrimse"
+  downloads_dir="$(vortex_prepared_downloads_dir "$library")"
+  mkdir -p "$staging_parent" "$downloads_dir"
+
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  while :; do
+    staging_dir="$staging_parent/empty-staging-$stamp$suffix"
+    [[ ! -e "$staging_dir" ]] && break
+    attempt=$((attempt + 1))
+    suffix="-$attempt"
+  done
+
+  mkdir -p "$staging_dir"
+  if ! directory_empty "$staging_dir"; then
+    die "Fresh staging folder is unexpectedly not empty: $staging_dir"
+  fi
+
+  test_file="$staging_dir/.proton-vortex-write-test"
+  printf 'ok\n' >"$test_file" || die "Cannot write to fresh staging folder: $staging_dir"
+  rm -f -- "$test_file"
+
+  dosdevices="$pfx/dosdevices"
+  mkdir -p "$dosdevices"
+  drive_link="$dosdevices/$PROTON_VORTEX_DRIVE_LETTER:"
+  if [[ -L "$drive_link" || ! -e "$drive_link" ]]; then
+    ln -sfn "$library" "$drive_link"
+  else
+    say "Warning: Proton drive $PROTON_VORTEX_DRIVE_LETTER: already exists and is not a symlink: $drive_link"
+  fi
+
+  game_win="$(windows_path_hint "$library" "$game_dir")"
+  staging_win="$(windows_path_hint "$library" "$staging_dir")"
+  downloads_win="$(windows_path_hint "$library" "$downloads_dir")"
+
+  hardlink_test "$staging_dir"
+
+  VORTEX_SKYRIMSE_STAGING_DIR="$staging_dir"
+  VORTEX_SKYRIMSE_STAGING_WIN_PATH="$staging_win"
+  update_config_value VORTEX_SKYRIMSE_STAGING_DIR "$staging_dir"
+  update_config_value VORTEX_SKYRIMSE_STAGING_WIN_PATH "$staging_win"
+
+  create_vortex_picker_helpers "$pfx" "$base_dir" "$staging_dir" "$downloads_dir" "$game_dir" "$game_win" "$staging_win" "$downloads_win"
+
+  say ""
+  say "Fresh empty Vortex staging folder created"
+  say "  Linux folder: $staging_dir"
+  say "  Vortex path:  $staging_win"
+  say ""
+  say "Use this in Vortex Settings > Mods > Mod Staging Folder when it says the destination has to be empty:"
+  say "  $staging_win"
+  say ""
+  say "This did not delete or move your old staging folder. If Vortex offers to move existing mods into this empty folder, allow it."
 }
 
 audio_fix() {
@@ -883,6 +994,7 @@ diagnose() {
     say "To check deployment/audio:"
     say "  proton-vortex-skyrim-se deployment"
     say "  proton-vortex-skyrim-se fix-staging"
+    say "  proton-vortex-skyrim-se empty-staging"
     say "  proton-vortex-skyrim-se hardlink-test"
     say "  proton-vortex-skyrim-se audio-check"
   else
@@ -898,6 +1010,7 @@ Usage:
   proton-vortex-skyrim-se diagnose
   proton-vortex-skyrim-se deployment
   proton-vortex-skyrim-se fix-staging
+  proton-vortex-skyrim-se empty-staging
   proton-vortex-skyrim-se hardlink-test [staging-folder]
   proton-vortex-skyrim-se audio-check
   proton-vortex-skyrim-se audio-fix
@@ -926,6 +1039,9 @@ main() {
       ;;
     fix-staging|staging-fix|prepare-staging|paths)
       fix_staging
+      ;;
+    empty-staging|fresh-staging|new-staging|create-empty-staging)
+      empty_staging
       ;;
     hardlink-test|deploy-test)
       shift

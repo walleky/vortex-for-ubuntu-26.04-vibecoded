@@ -154,6 +154,20 @@ Downloads Folder:   S:\VortexMods\downloads
 
 If your drive letter is different, use the exact paths printed by the command. Do not choose bare `Z:\`.
 
+If Vortex says the destination folder has to be empty, run:
+
+```bash
+proton-vortex-skyrim-se empty-staging
+```
+
+That creates a brand-new empty staging folder on the same filesystem as Skyrim and prints a path like:
+
+```text
+S:\VortexMods\skyrimse\empty-staging-20260502-113000
+```
+
+Use that fresh path as the **Mod Staging Folder**. The command does not delete your existing staging folder. If Vortex offers to move existing mods into the new empty folder, allow it.
+
 Existing Vortex downloads usually live under `%APPDATA%\Vortex\downloads`, which is inside the Proton prefix. On Linux that is under Skyrim's compatdata folder, usually:
 
 ```text

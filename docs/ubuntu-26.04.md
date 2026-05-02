@@ -188,6 +188,7 @@ proton-vortex preflight
 proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
 proton-vortex-skyrim-se fix-staging
+proton-vortex-skyrim-se empty-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -196,6 +197,8 @@ Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
 Deployment means Vortex links enabled mod files into Skyrim's real `Data` folder. If deployment fails, the game can launch normally but behave as if mods are missing.
 
 If Vortex Settings > Mods says staging is not writable, run `proton-vortex-skyrim-se fix-staging` and switch Vortex to the printed `S:\...` staging folder.
+
+If Vortex says the destination folder has to be empty, run `proton-vortex-skyrim-se empty-staging` and switch Vortex to the fresh empty `S:\VortexMods\skyrimse\empty-staging-...` path it prints. If Vortex offers to move existing mods there, allow it.
 
 If Vortex shows two Skyrim entries, the active one may point at the wrong discovered game path. Run:
 

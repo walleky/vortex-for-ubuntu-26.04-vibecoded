@@ -120,6 +120,14 @@ C:\users\steamuser\Desktop\Vortex Downloads
 C:\users\steamuser\Desktop\Skyrim Special Edition
 ```
 
+If Vortex says **destination folder has to be empty**, run:
+
+```bash
+proton-vortex-skyrim-se empty-staging
+```
+
+Then use the fresh empty `S:\VortexMods\skyrimse\empty-staging-...` path it prints. If Vortex offers to move your existing mods into that empty folder, allow it.
+
 ## Nexus API
 
 Skip this for normal use. Vortex handles Nexus links directly, and that is the no-hassle path.
@@ -232,6 +240,7 @@ Then run:
 ```bash
 proton-vortex-skyrim-se deployment
 proton-vortex-skyrim-se fix-staging
+proton-vortex-skyrim-se empty-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -239,7 +248,7 @@ Deploy means Vortex is putting enabled mod files into Skyrim's real `Data` folde
 
 Downloaded mods normally go into Vortex's downloads folder. Before the staging fix, that is usually inside Skyrim's Proton prefix under `steamapps/compatdata/489830/.../AppData/Roaming/Vortex/downloads`. After the staging fix, new downloads should use the easier `VortexMods/downloads` folder if Vortex is pointed there. Existing downloads are not deleted.
 
-If Vortex Settings > Mods shows a different staging folder than the command prints, run `proton-vortex-skyrim-se fix-staging` and switch Vortex to the printed staging path.
+If Vortex Settings > Mods shows a different staging folder than the command prints, run `proton-vortex-skyrim-se fix-staging` and switch Vortex to the printed staging path. If Vortex says the destination folder must be empty, run `proton-vortex-skyrim-se empty-staging` and use the new empty path instead.
 
 If Vortex shows two Skyrims, run:
 
@@ -295,6 +304,7 @@ Common fixes:
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
 - If Vortex says the staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`
+- If Vortex says the destination folder must be empty, run `proton-vortex-skyrim-se empty-staging`
 - If collections are not automatic, check whether you are using a free Nexus account
 - If a non-Nexus mod is a folder, zip it first
 

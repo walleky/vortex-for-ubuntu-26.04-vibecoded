@@ -72,6 +72,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 - Provides an explicit `hardlink-test` command for deployment filesystem checks
 - Provides `fix-staging` to create writable Vortex folders, Proton drive mapping, and symlinks for empty default Vortex folders
+- Provides `empty-staging` to create a fresh empty staging folder when Vortex refuses a non-empty destination
 
 `scripts/diagnose.sh`
 
@@ -166,6 +167,14 @@ Do not make it rewrite Vortex's internal state with `--set` unless the state pat
 ```
 
 It may replace empty default Vortex staging/download folders with symlinks to those prepared folders. It must leave non-empty existing folders alone.
+
+`proton-vortex-skyrim-se empty-staging` may create:
+
+```text
+<Steam Library>/VortexMods/skyrimse/empty-staging-YYYYMMDD-HHMMSS
+```
+
+It must not delete existing staging folders. It may update `VORTEX_SKYRIMSE_STAGING_DIR` and `VORTEX_SKYRIMSE_STAGING_WIN_PATH` in `config.env` to keep future diagnostics pointed at the fresh folder.
 
 Do not auto-edit undocumented Vortex profile/tool/game state to force the Dashboard Play button to SKSE. Use the Linux SKSE launcher, dock action, helper command, or generated `.bat` file instead unless Vortex documents a stable state API.
 
@@ -356,6 +365,7 @@ Mods downloaded but not active:
 - Launch with `proton-vortex-skyrim-se launch-skse`
 - Run `proton-vortex preflight` to check prefix and staging placement
 - Run `proton-vortex-skyrim-se fix-staging` when Vortex says staging is not writable or the Windows picker is confusing
+- Run `proton-vortex-skyrim-se empty-staging` when Vortex says the destination folder has to be empty
 - Run `proton-vortex-skyrim-se hardlink-test` when Vortex reports deploy failure
 
 Two Skyrim entries in Vortex:

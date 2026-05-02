@@ -67,6 +67,8 @@ It should not rewrite Vortex's internal configuration.
 
 `proton-vortex-skyrim-se fix-staging` creates prepared staging/download folders, maps the Steam library into Proton as a simple drive such as `S:`, links empty default Vortex folders, and runs a hardlink test. It leaves non-empty existing Vortex folders alone.
 
+`proton-vortex-skyrim-se empty-staging` creates a new timestamped empty staging folder under `<Steam Library>/VortexMods/skyrimse/`, verifies it can hardlink to Skyrim `Data`, updates the helper config/path hints, and leaves existing staging folders alone. Use it when Vortex says the destination folder has to be empty.
+
 It also creates Proton desktop helpers for the old Windows file picker:
 
 ```text
@@ -105,6 +107,7 @@ PROTON_PREFER_GE=1 bash install.sh
 - Nexus Premium controls fully automatic collection downloads; the wrapper does not bypass Nexus account limits.
 - Vortex hardlink deployment needs the staging folder and Skyrim folder on the same filesystem.
 - If Vortex's Windows picker shows `C:` and `Z:`, use `proton-vortex-skyrim-se fix-staging` and the printed `S:\...` paths instead of creating folders at bare `Z:\`.
+- If Vortex says the destination folder has to be empty, use `proton-vortex-skyrim-se empty-staging` and the fresh `S:\...` path it prints.
 - The Vortex launcher uses `StartupWMClass=vortex.exe` plus desktop actions for SKSE and staging repair, but some docks cache old launcher metadata until logout/login or re-pinning.
 - The wrapper does not force Vortex's private Dashboard/Play tool state. Use the SKSE launcher, `proton-vortex-skyrim-se launch-skse`, the Vortex dock action, or the generated SKSE batch helper for guaranteed SKSE launch.
 - `proton-vortex-skyrim-se hardlink-test` writes and removes one tiny test file to confirm hardlinks can be created.

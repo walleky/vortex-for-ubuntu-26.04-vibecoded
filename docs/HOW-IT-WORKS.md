@@ -215,6 +215,8 @@ If Vortex shows two Skyrim entries, use `proton-vortex-skyrim-se fix-staging` to
 
 `proton-vortex-skyrim-se fix-staging` creates the prepared staging/download folders, adds the Proton drive mapping, links empty default Vortex folders to the prepared folders, and runs a hardlink deployment test.
 
+`proton-vortex-skyrim-se empty-staging` creates a brand-new empty staging folder for Vortex's "destination folder has to be empty" prompt, tests hardlinks, updates the helper path hints, and does not delete existing staging folders.
+
 `proton-vortex-skyrim-se deployment` checks the Skyrim `Data` folder, prepared staging folder, voice archives, deployed plugin files, and Proton `plugins.txt`. `proton-vortex-skyrim-se audio-fix` is optional and installs `xact` into the Skyrim Proton prefix through `protontricks` or `winetricks` for the Proton voice-audio issue.
 
 `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` adds Electron performance flags and quiets Wine debug output for heavier download sessions.
