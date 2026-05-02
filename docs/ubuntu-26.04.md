@@ -136,10 +136,10 @@ To force 200% Wine/file-picker scaling:
 PROTON_VORTEX_DPI=192 bash install.sh
 ```
 
-If Vortex is blank or very choppy, try disabling Electron GPU acceleration for Vortex:
+If Vortex is invisible, blank, or very choppy, keep GPU-safe Electron rendering enabled:
 
 ```bash
-PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
+PROTON_VORTEX_DISABLE_GPU=1 bash install.sh
 ```
 
 If Vortex gets choppy while downloading a large collection:
@@ -240,6 +240,14 @@ bash install.sh
 ```
 
 The Vortex desktop file uses `StartupWMClass=vortex.exe` for Wine window matching. Some desktops cache icons aggressively; logging out/in after rerunning the installer may be needed.
+
+If **Vortex (Proton)** disappears from the app menu but the command still exists, run:
+
+```bash
+proton-vortex doctor --fix
+```
+
+That rewrites the local desktop entries and refreshes the desktop database.
 
 ## SKSE64
 

@@ -249,7 +249,7 @@ PROTON_VORTEX_SCALE=0 proton-vortex
 If Vortex is choppy or blank:
 
 ```bash
-PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
+PROTON_VORTEX_DISABLE_GPU=1 bash install.sh
 ```
 
 If Vortex gets choppy while downloading a large collection:

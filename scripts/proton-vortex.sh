@@ -4,11 +4,13 @@ IFS=$'\n\t'
 
 APP_ID="proton-vortex"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+BIN_HOME="${XDG_BIN_HOME:-$HOME/.local/bin}"
 APP_HOME="$DATA_HOME/$APP_ID"
 CONFIG_FILE="$APP_HOME/config.env"
 INTAKE_HELPER="$APP_HOME/mod-intake.py"
 LOG_DIR="$APP_HOME/logs"
 NXM_DESKTOP="$DATA_HOME/applications/proton-vortex-nxm.desktop"
+APP_DESKTOP_DIR="$DATA_HOME/applications"
 
 say() {
   printf '%s\n' "$*"
@@ -33,6 +35,140 @@ warn() {
 
 fail() {
   printf '[fail] %s\n' "$*"
+}
+
+desktop_quote() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
+}
+
+current_launcher_path() {
+  local launcher
+  launcher="$(command -v proton-vortex 2>/dev/null || true)"
+  if [[ -n "$launcher" ]]; then
+    printf '%s\n' "$launcher"
+  elif [[ "$0" == */* ]]; then
+    readlink -f "$0" 2>/dev/null || printf '%s\n' "$0"
+  else
+    printf '%s/proton-vortex\n' "$BIN_HOME"
+  fi
+}
+
+skyrim_helper_path() {
+  local helper
+  helper="$(command -v proton-vortex-skyrim-se 2>/dev/null || true)"
+  if [[ -n "$helper" ]]; then
+    printf '%s\n' "$helper"
+  else
+    printf '%s/proton-vortex-skyrim-se\n' "$BIN_HOME"
+  fi
+}
+
+write_desktop_files() {
+  local launcher
+  local helper
+  local launcher_exec
+
+  launcher="$(current_launcher_path)"
+  helper="$(skyrim_helper_path)"
+  launcher_exec="$(desktop_quote "$launcher")"
+  mkdir -p "$APP_DESKTOP_DIR"
+
+  cat >"$APP_DESKTOP_DIR/proton-vortex.desktop" <<EOF_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Vortex (Proton)
+Comment=Run Nexus Mods Vortex through Steam Proton
+Categories=Game;Utility;
+Keywords=Vortex;Nexus;Mods;Skyrim;SKSE;
+Exec=$launcher_exec
+Terminal=false
+Icon=proton-vortex
+NoDisplay=false
+StartupWMClass=vortex.exe
+StartupNotify=true
+Actions=LaunchSKSE;FixStaging;
+
+[Desktop Action LaunchSKSE]
+Name=Launch Skyrim SE SKSE
+Exec=$(desktop_quote "$helper") launch-skse
+
+[Desktop Action FixStaging]
+Name=Fix Skyrim SE Staging
+Exec=$(desktop_quote "$helper") fix-staging
+EOF_DESKTOP
+
+  cat >"$APP_DESKTOP_DIR/proton-vortex-nxm.desktop" <<EOF_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Vortex NXM Handler
+Comment=Open Nexus Mods NXM links in Vortex through Proton
+Categories=Game;Network;
+MimeType=x-scheme-handler/nxm;x-scheme-handler/nxm-protocol;
+Exec=$launcher_exec %u
+Terminal=false
+Icon=proton-vortex
+NoDisplay=true
+StartupNotify=true
+EOF_DESKTOP
+
+  cat >"$APP_DESKTOP_DIR/proton-vortex-skyrim-se.desktop" <<EOF_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Skyrim SE SKSE (Proton)
+Comment=Launch Skyrim Special Edition through SKSE64 and Proton
+Categories=Game;
+Keywords=Skyrim;SKSE;Vortex;Mods;
+Exec=$(desktop_quote "$helper") launch-skse
+Terminal=false
+Icon=proton-vortex-skyrim-se
+NoDisplay=false
+StartupWMClass=skse64_loader.exe
+StartupNotify=true
+EOF_DESKTOP
+
+  cat >"$APP_DESKTOP_DIR/proton-vortex-import.desktop" <<EOF_DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Import Mod with Vortex (Proton)
+Comment=Import a local mod archive into Vortex through Proton
+Categories=Game;Utility;
+Keywords=Vortex;Nexus;Mods;Archive;Import;
+MimeType=application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/gzip;application/x-tar;
+Exec=$launcher_exec import %u
+Terminal=false
+Icon=proton-vortex-import
+NoDisplay=false
+StartupNotify=true
+EOF_DESKTOP
+
+  chmod 644 \
+    "$APP_DESKTOP_DIR/proton-vortex.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-nxm.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-skyrim-se.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-import.desktop"
+}
+
+refresh_desktop_integration() {
+  if command -v desktop-file-validate >/dev/null 2>&1; then
+    desktop-file-validate "$APP_DESKTOP_DIR/proton-vortex.desktop" || true
+    desktop-file-validate "$APP_DESKTOP_DIR/proton-vortex-nxm.desktop" || true
+    desktop-file-validate "$APP_DESKTOP_DIR/proton-vortex-skyrim-se.desktop" || true
+    desktop-file-validate "$APP_DESKTOP_DIR/proton-vortex-import.desktop" || true
+  fi
+  if command -v xdg-mime >/dev/null 2>&1 && [[ -f "$NXM_DESKTOP" ]]; then
+    xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm || true
+    xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm-protocol || true
+  fi
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APP_DESKTOP_DIR" >/dev/null 2>&1 || true
+  fi
+  if command -v xdg-desktop-menu >/dev/null 2>&1; then
+    xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
+  fi
+  touch "$APP_DESKTOP_DIR" 2>/dev/null || true
 }
 
 prune_logs() {
@@ -67,7 +203,7 @@ load_config() {
   fi
   PROTON_APP_ID="${PROTON_APP_ID:-0}"
   VORTEX_GAME_ID="${VORTEX_GAME_ID:-}"
-  PROTON_VORTEX_DISABLE_GPU="${env_disable_gpu:-${PROTON_VORTEX_DISABLE_GPU:-0}}"
+  PROTON_VORTEX_DISABLE_GPU="${env_disable_gpu:-${PROTON_VORTEX_DISABLE_GPU:-1}}"
   PROTON_VORTEX_PERFORMANCE="${env_performance:-${PROTON_VORTEX_PERFORMANCE:-0}}"
   PROTON_VORTEX_SCALE="${env_scale:-${PROTON_VORTEX_SCALE:-1.5}}"
   PROTON_VORTEX_WINEDEBUG="${env_winedebug:-${PROTON_VORTEX_WINEDEBUG:--all}}"
@@ -125,7 +261,7 @@ run_vortex() {
   local status
 
   if [[ "$PROTON_VORTEX_DISABLE_GPU" == "1" ]]; then
-    electron_flags+=(--disable-gpu --disable-gpu-compositing)
+    electron_flags+=(--disable-gpu --disable-gpu-compositing --disable-direct-composition --disable-accelerated-2d-canvas)
   fi
   if [[ "$PROTON_VORTEX_PERFORMANCE" == "1" ]]; then
     electron_flags+=(--disable-background-timer-throttling --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion)
@@ -291,16 +427,8 @@ doctor() {
 
   if [[ "$fix" == "--fix" ]]; then
     ensure_support_dirs 1
-    if command -v xdg-mime >/dev/null 2>&1 && [[ -f "$NXM_DESKTOP" ]]; then
-      xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm || true
-      xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm-protocol || true
-    fi
-    if command -v update-desktop-database >/dev/null 2>&1; then
-      update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
-    fi
-    if command -v xdg-desktop-menu >/dev/null 2>&1; then
-      xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
-    fi
+    write_desktop_files
+    refresh_desktop_integration
   fi
 
   say "Proton Vortex doctor"
@@ -433,6 +561,27 @@ show_last_log() {
   tail -n "${PROTON_VORTEX_LOG_LINES:-80}" "$log_file"
 }
 
+choose_import_file() {
+  local file
+
+  if command -v zenity >/dev/null 2>&1; then
+    file="$(zenity --file-selection \
+      --title="Choose a mod archive for Vortex" \
+      --file-filter="Mod archives | *.zip *.7z *.rar *.tar *.gz *.tgz" \
+      --file-filter="All files | *" 2>/dev/null || true)"
+    [[ -n "$file" ]] && printf '%s\n' "$file"
+    return 0
+  fi
+
+  if command -v kdialog >/dev/null 2>&1; then
+    file="$(kdialog --getopenfilename "${HOME:-/}" "*.zip *.7z *.rar *.tar *.gz *.tgz | Mod archives" 2>/dev/null || true)"
+    [[ -n "$file" ]] && printf '%s\n' "$file"
+    return 0
+  fi
+
+  return 1
+}
+
 self_update() {
   if [[ -z "$INSTALL_SOURCE_DIR" || ! -d "$INSTALL_SOURCE_DIR/.git" ]]; then
     die "Self-update needs a git clone source directory. Use: git pull && bash install.sh"
@@ -508,6 +657,7 @@ EOF_HELP
   esac
 
   local vortex_exe
+  local selected=""
   require_prefix
   vortex_exe="$(find_vortex_exe || true)"
   if [[ -z "$vortex_exe" ]]; then
@@ -516,7 +666,19 @@ EOF_HELP
 
   if [[ "${1:-}" == "import" ]]; then
     shift
-    [[ -n "${1:-}" ]] || die "Usage: proton-vortex import /path/to/mod.zip"
+    if [[ -z "${1:-}" ]]; then
+      selected="$(choose_import_file || true)"
+      if [[ -z "$selected" ]]; then
+        say_err "No archive selected. Opening Vortex instead."
+        if [[ -n "$VORTEX_GAME_ID" ]]; then
+          run_vortex "$vortex_exe" --game "$VORTEX_GAME_ID"
+        else
+          run_vortex "$vortex_exe"
+        fi
+        return 0
+      fi
+      set -- "$selected"
+    fi
     run_intake "$vortex_exe" "$1"
     return 0
   fi

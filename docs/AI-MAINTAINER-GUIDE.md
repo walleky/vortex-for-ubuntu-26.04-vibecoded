@@ -26,7 +26,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Bootstraps the selected Proton prefix before Vortex install
 - Writes Wine dialog/file-picker DPI registry values in the prefix unless `PROTON_VORTEX_DPI=0`; default is `192`
 - Stores `PROTON_VORTEX_SCALE`, which the launcher passes to Electron as a scale factor
-- Stores `PROTON_VORTEX_PERFORMANCE` and `PROTON_VORTEX_WINEDEBUG` for heavy-download and log-noise tuning
+- Stores `PROTON_VORTEX_DISABLE_GPU`, `PROTON_VORTEX_PERFORMANCE`, and `PROTON_VORTEX_WINEDEBUG` for rendering, heavy-download, and log-noise tuning
 - Prepares `VortexMods` staging/download folders beside Skyrim's Steam library
 - Maps that Steam library into Proton as `PROTON_VORTEX_DRIVE_LETTER`, default `s`
 - Creates Proton desktop picker helpers and an SKSE batch helper for Vortex's Windows dialogs
@@ -145,6 +145,7 @@ Keep this contract stable unless every caller is updated.
 `proton-vortex doctor --fix` may repair only low-risk Linux-side integration:
 
 - Create support folders
+- Rewrite local desktop launchers
 - Re-register `nxm://`
 - Refresh the desktop database
 - Confirm shared Skyrim/Vortex prefix when Skyrim is detected
@@ -367,10 +368,11 @@ Tiny or choppy Vortex UI:
 
 - Default scale is `PROTON_VORTEX_SCALE=1.5`
 - Default Wine dialog/file picker DPI is `PROTON_VORTEX_DPI=192`
+- Default GPU-safe rendering is `PROTON_VORTEX_DISABLE_GPU=1`
 - Try `PROTON_VORTEX_SCALE=1.25 proton-vortex` if 150% is too large
 - Persist with `PROTON_VORTEX_SCALE=1.5 bash install.sh`
 - Persist 200% Wine dialogs with `PROTON_VORTEX_DPI=192 bash install.sh`
-- Try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex` for blank/choppy Electron rendering
+- Persist GPU-safe rendering with `PROTON_VORTEX_DISABLE_GPU=1 bash install.sh`
 - Try `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` for heavy download sessions
 - Suggest reducing Vortex parallel downloads to 1-2 for large collections
 

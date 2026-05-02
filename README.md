@@ -183,7 +183,7 @@ bash scripts/diagnose.sh
 bash uninstall.sh
 ```
 
-`proton-vortex doctor` is read-only. Use `proton-vortex doctor --fix` only when you want it to re-register desktop handlers and create low-risk support folders.
+`proton-vortex doctor` is read-only. Use `proton-vortex doctor --fix` when you want it to rewrite the local app launchers, re-register desktop handlers, refresh the desktop database, and create low-risk support folders.
 
 ## Notes
 
@@ -201,7 +201,7 @@ bash uninstall.sh
 - If you see "No Proton prefix found", rerun `bash install.sh`. If you intentionally use Skyrim's own prefix, launching Skyrim once from Steam also creates it.
 - The installer sets the Proton prefix Windows DPI to `192`, which is 200% scaling for Wine dialogs and Vortex's old Windows file picker. Override with `PROTON_VORTEX_DPI=144 bash install.sh`, or disable with `PROTON_VORTEX_DPI=0 bash install.sh`.
 - The launcher also applies Electron UI scaling with `PROTON_VORTEX_SCALE=1.5`, which is 150%. Override it with `PROTON_VORTEX_SCALE=1.25 proton-vortex`, or disable with `PROTON_VORTEX_SCALE=0 proton-vortex`.
-- If Vortex is still very choppy or blank, try `PROTON_VORTEX_DISABLE_GPU=1 proton-vortex`.
+- GPU-safe Electron rendering is on by default with `PROTON_VORTEX_DISABLE_GPU=1` because Proton/Electron can open an invisible or blank Vortex window on some X11/Wayland setups. Override with `PROTON_VORTEX_DISABLE_GPU=0 proton-vortex`.
 - If the Vortex dock icon is generic, rerun `bash install.sh`; the launcher now uses the lower-case Wine window class `vortex.exe` and adds dock actions for SKSE launch/staging repair.
 - If Vortex shows two Skyrims, run `proton-vortex doctor` and manage the Skyrim entry whose path matches the printed `Skyrim Vortex path hint`.
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.

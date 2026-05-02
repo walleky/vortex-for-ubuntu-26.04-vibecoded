@@ -22,6 +22,7 @@ COMPAT_DATA="$APP_COMPAT_DATA"
 PROTON_APP_ID="${PROTON_APP_ID:-$SKYRIM_APP_ID}"
 PROTON_VORTEX_DPI="${PROTON_VORTEX_DPI:-192}"
 PROTON_VORTEX_SCALE="${PROTON_VORTEX_SCALE:-1.5}"
+PROTON_VORTEX_DISABLE_GPU="${PROTON_VORTEX_DISABLE_GPU:-1}"
 PROTON_VORTEX_PERFORMANCE="${PROTON_VORTEX_PERFORMANCE:-0}"
 PROTON_VORTEX_WINEDEBUG="${PROTON_VORTEX_WINEDEBUG:--all}"
 PROTON_VORTEX_DRIVE_LETTER="${PROTON_VORTEX_DRIVE_LETTER:-s}"
@@ -425,6 +426,7 @@ SKYRIM_SE_COMPAT_DATA=$(printf '%q' "${SKYRIM_SE_COMPAT_DATA:-}")
 PROTON_APP_ID=$(printf '%q' "$PROTON_APP_ID")
 PROTON_VORTEX_DPI=$(printf '%q' "$PROTON_VORTEX_DPI")
 PROTON_VORTEX_SCALE=$(printf '%q' "$PROTON_VORTEX_SCALE")
+PROTON_VORTEX_DISABLE_GPU=$(printf '%q' "$PROTON_VORTEX_DISABLE_GPU")
 PROTON_VORTEX_PERFORMANCE=$(printf '%q' "$PROTON_VORTEX_PERFORMANCE")
 PROTON_VORTEX_WINEDEBUG=$(printf '%q' "$PROTON_VORTEX_WINEDEBUG")
 PROTON_VORTEX_DRIVE_LETTER=$(printf '%q' "$PROTON_VORTEX_DRIVE_LETTER")
@@ -504,9 +506,11 @@ Type=Application
 Name=$APP_NAME
 Comment=Run Nexus Mods Vortex through Steam Proton
 Categories=Game;Utility;
+Keywords=Vortex;Nexus;Mods;Skyrim;SKSE;
 Exec=$launcher_exec
 Terminal=false
 Icon=proton-vortex
+NoDisplay=false
 StartupWMClass=vortex.exe
 StartupNotify=true
 Actions=LaunchSKSE;FixStaging;
@@ -540,9 +544,11 @@ Type=Application
 Name=Skyrim SE SKSE (Proton)
 Comment=Launch Skyrim Special Edition through SKSE64 and Proton
 Categories=Game;
+Keywords=Skyrim;SKSE;Vortex;Mods;
 Exec=$(desktop_quote "$SKYRIM_HELPER") launch-skse
 Terminal=false
 Icon=proton-vortex-skyrim-se
+NoDisplay=false
 StartupWMClass=skse64_loader.exe
 StartupNotify=true
 EOF_DESKTOP
@@ -553,6 +559,7 @@ Type=Application
 Name=Import Mod with Vortex (Proton)
 Comment=Import a local mod archive into Vortex through Proton
 Categories=Game;Utility;
+Keywords=Vortex;Nexus;Mods;Archive;Import;
 MimeType=application/zip;application/x-7z-compressed;application/vnd.rar;application/x-rar;application/x-rar-compressed;application/gzip;application/x-tar;
 Exec=$launcher_exec import %u
 Terminal=false
@@ -560,6 +567,12 @@ Icon=proton-vortex-import
 NoDisplay=false
 StartupNotify=true
 EOF_DESKTOP
+
+  chmod 644 \
+    "$APP_DESKTOP_DIR/proton-vortex.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-nxm.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-skyrim-se.desktop" \
+    "$APP_DESKTOP_DIR/proton-vortex-import.desktop"
 
   if have desktop-file-validate; then
     desktop-file-validate "$APP_DESKTOP_DIR/proton-vortex.desktop" || true
@@ -574,6 +587,7 @@ EOF_DESKTOP
   if have xdg-desktop-menu; then
     xdg-desktop-menu forceupdate >/dev/null 2>&1 || true
   fi
+  touch "$APP_DESKTOP_DIR"
 }
 
 register_nxm_handler() {

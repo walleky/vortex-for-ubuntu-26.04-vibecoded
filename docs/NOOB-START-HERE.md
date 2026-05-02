@@ -47,10 +47,10 @@ The old Windows folder picker uses 200% scaling by default. If it still looks to
 PROTON_VORTEX_DPI=192 bash install.sh
 ```
 
-If Vortex is choppy or blank, try:
+If Vortex is invisible, blank, or choppy, rerun the installer. GPU-safe Vortex rendering is now the default:
 
 ```bash
-PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
+PROTON_VORTEX_DISABLE_GPU=1 bash install.sh
 ```
 
 To check the setup without changing anything:
@@ -65,6 +65,8 @@ To repair desktop-side setup like the `nxm://` handler:
 ```bash
 proton-vortex doctor --fix
 ```
+
+That also rewrites the **Vortex (Proton)**, **Skyrim SE SKSE (Proton)**, and **Import Mod with Vortex (Proton)** app launchers if your desktop menu loses them.
 
 ## Install
 
@@ -162,6 +164,8 @@ Or right-click the archive in your file manager and choose:
 ```text
 Import Mod with Vortex (Proton)
 ```
+
+If you click **Import Mod with Vortex (Proton)** from the app menu with no file selected, it opens a native file picker when `zenity` or `kdialog` is available.
 
 If you have a direct archive URL:
 

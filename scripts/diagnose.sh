@@ -91,6 +91,9 @@ if [[ -r "$CONFIG_FILE" ]]; then
   if [[ -n "${PROTON_VORTEX_SCALE:-}" ]]; then
     ok "Vortex Electron scale factor: $PROTON_VORTEX_SCALE"
   fi
+  if [[ -n "${PROTON_VORTEX_DISABLE_GPU:-}" ]]; then
+    ok "Vortex GPU-safe rendering: $PROTON_VORTEX_DISABLE_GPU"
+  fi
   if [[ -n "${PROTON_VORTEX_PERFORMANCE:-}" ]]; then
     ok "Vortex performance mode: $PROTON_VORTEX_PERFORMANCE"
   fi
@@ -175,7 +178,7 @@ printf "  proton-vortex doctor --fix\n"
 printf "  proton-vortex linked\n"
 printf "  proton-vortex preflight\n"
 printf "  If Vortex is tiny: PROTON_VORTEX_SCALE=1.5 proton-vortex\n"
-printf "  If Vortex is choppy/blank: PROTON_VORTEX_DISABLE_GPU=1 proton-vortex\n"
+printf "  If Vortex is invisible/choppy/blank: PROTON_VORTEX_DISABLE_GPU=1 bash install.sh\n"
 printf "\nSKSE and deployment:\n"
 printf "  proton-vortex-skyrim-se install-skse\n"
 printf "  proton-vortex-skyrim-se launch-skse\n"

@@ -219,6 +219,8 @@ If Vortex shows two Skyrim entries, use `proton-vortex-skyrim-se fix-staging` to
 
 `PROTON_VORTEX_PERFORMANCE=1 proton-vortex` adds Electron performance flags and quiets Wine debug output for heavier download sessions.
 
+`PROTON_VORTEX_DISABLE_GPU=1` is saved by default. That makes Vortex more likely to draw visibly under Proton on both X11 and Wayland sessions where Electron GPU compositing can produce a blank or invisible window.
+
 ## Data Locations
 
 Main config:

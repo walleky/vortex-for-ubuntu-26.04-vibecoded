@@ -59,6 +59,7 @@ SKSE_AUTO_UPDATE=1 bash install.sh
 `proton-vortex doctor --fix` may do low-risk repairs:
 
 - Create support folders
+- Rewrite local desktop launchers
 - Re-register `nxm://`
 - Refresh desktop integration
 
@@ -99,6 +100,7 @@ PROTON_PREFER_GE=1 bash install.sh
 - Vortex is still the Windows app running through Proton, so occasional Electron UI jank can happen.
 - Electron UI scaling is handled with `PROTON_VORTEX_SCALE`, defaulting to `1.5` for 150% UI scale.
 - Wine dialog and file picker scaling is handled with `PROTON_VORTEX_DPI`, defaulting to `192` for about 200% scale.
+- GPU-safe Electron rendering is enabled by default with `PROTON_VORTEX_DISABLE_GPU=1` because some Proton/Electron setups open an invisible or blank Vortex window otherwise.
 - Heavy download sessions can use `PROTON_VORTEX_PERFORMANCE=1`; it changes launcher flags only, not Vortex data.
 - Nexus Premium controls fully automatic collection downloads; the wrapper does not bypass Nexus account limits.
 - Vortex hardlink deployment needs the staging folder and Skyrim folder on the same filesystem.
