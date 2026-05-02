@@ -110,6 +110,7 @@ Run:
 ```bash
 proton-vortex-skyrim-se deployment
 proton-vortex-skyrim-se fix-staging
+proton-vortex-skyrim-se empty-staging
 proton-vortex-skyrim-se hardlink-test
 ```
 
@@ -118,6 +119,14 @@ If Vortex Settings > Mods shows a custom staging folder, you can test that exact
 ```bash
 proton-vortex-skyrim-se hardlink-test "/path/to/your/Vortex/staging/folder"
 ```
+
+If Vortex also says **No Vortex uninstall key**, that is a separate Vortex app install warning, not a deployment warning. Run:
+
+```bash
+proton-vortex repair-vortex
+```
+
+Then go back to Vortex and deploy again.
 
 ## Vortex Says Staging Is Not Writable
 

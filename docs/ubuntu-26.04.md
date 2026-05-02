@@ -166,6 +166,14 @@ To repair safe desktop-side issues:
 proton-vortex doctor --fix
 ```
 
+If Vortex says **No Vortex uninstall key**:
+
+```bash
+proton-vortex repair-vortex
+```
+
+That reinstalls the Vortex app over itself to repair install metadata. It does not delete Vortex downloads, staging folders, profiles, collections, or mod lists.
+
 That creates low-risk support folders, refreshes the desktop database, and re-registers the `nxm://` handler.
 
 Before starting a large collection:

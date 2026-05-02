@@ -68,6 +68,14 @@ proton-vortex doctor --fix
 
 That also rewrites the **Vortex (Proton)**, **Skyrim SE SKSE (Proton)**, and **Import Mod with Vortex (Proton)** app launchers if your desktop menu loses them.
 
+If Vortex says **No Vortex uninstall key**, run:
+
+```bash
+proton-vortex repair-vortex
+```
+
+That reinstalls Vortex over itself to repair Windows registry/install metadata. It does not delete your Vortex downloads, staging folders, profiles, collections, or mod list.
+
 ## Install
 
 Open a terminal in this folder and run:
@@ -305,6 +313,7 @@ Common fixes:
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
 - If Vortex says the staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`
 - If Vortex says the destination folder must be empty, run `proton-vortex-skyrim-se empty-staging`
+- If Vortex says no uninstall key, run `proton-vortex repair-vortex`
 - If collections are not automatic, check whether you are using a free Nexus account
 - If a non-Nexus mod is a folder, zip it first
 

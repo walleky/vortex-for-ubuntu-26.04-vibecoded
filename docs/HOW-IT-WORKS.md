@@ -249,6 +249,8 @@ proton-vortex last-log
 
 `proton-vortex doctor` only checks. `proton-vortex doctor --fix` creates low-risk support folders and repairs desktop integration.
 
+`proton-vortex repair-vortex` reinstalls the Vortex application over itself with `FORCE_REINSTALL=1`. This is for Vortex's **No Vortex uninstall key** warning. It repairs app install/registry metadata, not mod deployment state, and it does not delete Vortex AppData, downloads, staging folders, profiles, or mod lists.
+
 Nexus API key:
 
 ```text

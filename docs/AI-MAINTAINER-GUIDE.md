@@ -48,6 +48,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Passes local archives to Vortex as Proton-readable `file:///Z:/...` URLs
 - Captures Vortex/Proton stdout and stderr to `~/.local/share/proton-vortex/logs`
 - Provides `doctor`, `doctor --fix`, `linked`, `preflight`, `last-log`, and `self-update`
+- Provides `repair-vortex` to rerun the installer with `FORCE_REINSTALL=1` when Vortex reports missing uninstall metadata
 - Runs Vortex through Proton
 - Keeps plain `doctor` read-only; put state repair in `doctor --fix`
 - Prints the expected Skyrim path, simple drive path, staging path, and downloads path so users can identify duplicate Vortex game entries
@@ -152,6 +153,14 @@ Keep this contract stable unless every caller is updated.
 - Confirm shared Skyrim/Vortex prefix when Skyrim is detected
 
 Do not make it rewrite Vortex's internal state with `--set` unless the state path is verified against current Vortex.
+
+`proton-vortex repair-vortex` may rerun:
+
+```bash
+FORCE_REINSTALL=1 bash install.sh
+```
+
+Use it for Vortex's **No Vortex uninstall key** warning. It must not remove AppData, downloads, staging folders, profiles, collections, or mod lists.
 
 `proton-vortex-skyrim-se fix-staging` may create:
 

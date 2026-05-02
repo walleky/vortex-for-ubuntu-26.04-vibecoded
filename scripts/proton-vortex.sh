@@ -594,6 +594,16 @@ self_update() {
   bash "$INSTALL_SOURCE_DIR/install.sh"
 }
 
+repair_vortex_install() {
+  if [[ -z "$INSTALL_SOURCE_DIR" || ! -f "$INSTALL_SOURCE_DIR/install.sh" ]]; then
+    die "Vortex repair needs the original install source folder. Use: FORCE_REINSTALL=1 bash install.sh from the project folder."
+  fi
+
+  say "Repairing Vortex installation registry/uninstall metadata by reinstalling Vortex over itself."
+  say "This keeps Vortex AppData, downloads, staging folders, profiles, and mod lists intact."
+  FORCE_REINSTALL=1 SKSE_AUTO_UPDATE="${SKSE_AUTO_UPDATE:-0}" bash "$INSTALL_SOURCE_DIR/install.sh"
+}
+
 main() {
   load_config
 
@@ -616,6 +626,7 @@ Usage:
   proton-vortex preflight
   proton-vortex last-log
   proton-vortex self-update
+  proton-vortex repair-vortex
   proton-vortex --print-info
 
 Normal Nexus NXM files are sent to Vortex's native download-and-install flow.
@@ -652,6 +663,10 @@ EOF_HELP
       ;;
     self-update|update)
       self_update
+      return 0
+      ;;
+    repair-vortex|reinstall-vortex|fix-uninstall-key|uninstall-key)
+      repair_vortex_install
       return 0
       ;;
   esac

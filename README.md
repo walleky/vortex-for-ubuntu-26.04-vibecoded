@@ -178,6 +178,7 @@ proton-vortex linked
 proton-vortex preflight
 proton-vortex last-log
 proton-vortex self-update
+proton-vortex repair-vortex
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se launch-skse
 proton-vortex-skyrim-se fix-staging
@@ -209,6 +210,7 @@ bash uninstall.sh
 - If mods still do not appear in-game, run `proton-vortex-skyrim-se deployment`.
 - If Vortex says the mod staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`, then use the printed `S:\...` paths in Vortex.
 - If Vortex says the destination folder has to be empty, run `proton-vortex-skyrim-se empty-staging`, then use the fresh empty `S:\...` path it prints.
+- If Vortex says **No Vortex uninstall key**, run `proton-vortex repair-vortex`. This reinstalls Vortex over itself to recreate installer/registry metadata without deleting Vortex AppData, downloads, staging folders, profiles, or mod lists.
 - Vortex's own Play button may still use plain Skyrim unless Vortex has made SKSE primary. The always-correct launch path is `proton-vortex-skyrim-se launch-skse`, the **Skyrim SE SKSE (Proton)** icon, or the Vortex dock action **Launch Skyrim SE SKSE**.
 - If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
 - If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.

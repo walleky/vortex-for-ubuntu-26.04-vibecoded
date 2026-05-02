@@ -65,6 +65,8 @@ SKSE_AUTO_UPDATE=1 bash install.sh
 
 It should not rewrite Vortex's internal configuration.
 
+`proton-vortex repair-vortex` reruns `install.sh` with `FORCE_REINSTALL=1`. This repairs the Vortex app install and Windows uninstall registry metadata while leaving Vortex AppData, downloads, staging folders, profiles, collections, and mod lists alone.
+
 `proton-vortex-skyrim-se fix-staging` creates prepared staging/download folders, maps the Steam library into Proton as a simple drive such as `S:`, links empty default Vortex folders, and runs a hardlink test. It leaves non-empty existing Vortex folders alone.
 
 `proton-vortex-skyrim-se empty-staging` creates a new timestamped empty staging folder under `<Steam Library>/VortexMods/skyrimse/`, verifies it can hardlink to Skyrim `Data`, updates the helper config/path hints, and leaves existing staging folders alone. Use it when Vortex says the destination folder has to be empty.
@@ -110,6 +112,7 @@ PROTON_PREFER_GE=1 bash install.sh
 - If Vortex says the destination folder has to be empty, use `proton-vortex-skyrim-se empty-staging` and the fresh `S:\...` path it prints.
 - The Vortex launcher uses `StartupWMClass=vortex.exe` plus desktop actions for SKSE and staging repair, but some docks cache old launcher metadata until logout/login or re-pinning.
 - The wrapper does not force Vortex's private Dashboard/Play tool state. Use the SKSE launcher, `proton-vortex-skyrim-se launch-skse`, the Vortex dock action, or the generated SKSE batch helper for guaranteed SKSE launch.
+- Vortex's **No Vortex uninstall key** warning is about app install metadata. Use `proton-vortex repair-vortex`; do not delete Vortex AppData.
 - `proton-vortex-skyrim-se hardlink-test` writes and removes one tiny test file to confirm hardlinks can be created.
 - Downloaded mods still need Vortex's normal install, enable, plugin-enable, and deploy steps before Skyrim can load them.
 - Vortex can discover duplicate Skyrim entries through different Proton-visible paths. Manage the one matching `proton-vortex doctor`.
