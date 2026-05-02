@@ -14,19 +14,21 @@ If you just want it working:
 2. Run `bash install.sh`
 3. Launch **Vortex (Proton)**
 4. Launch Skyrim with **Skyrim SE SKSE (Proton)**
+5. Run `proton-vortex doctor` if you want a read-only health check
 
 If you are an AI assistant or maintainer:
 
 1. Read [AI Maintainer Guide](docs/AI-MAINTAINER-GUIDE.md)
 2. Read [How It Works](docs/HOW-IT-WORKS.md)
-3. Run the checks listed at the bottom of the maintainer guide after editing
+3. Read [Stability And Compatibility Notes](docs/STABILITY-COMPATIBILITY.md)
+4. Run the checks listed at the bottom of the maintainer guide after editing
 
 ## What This Gives You
 
 - Vortex installed into a Proton prefix managed by this bundle
 - If Steam Skyrim Special Edition is installed, Vortex uses Skyrim SE's Proton prefix by default
 - If Steam Skyrim Special Edition is found, plain Vortex launches with Vortex game id `skyrimse`
-- Automatic SKSE64 install/update helper for Steam Skyrim Special Edition
+- Automatic SKSE64 install helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
 - Linux desktop/dock icons for Vortex, Skyrim SKSE, and archive import
@@ -36,7 +38,7 @@ If you are an AI assistant or maintainer:
 - A file-manager **Import Mod with Vortex (Proton)** entry for common archive types
 - A terminal command named `proton-vortex`
 - A terminal command named `proton-vortex-skyrim-se`
-- A `proton-vortex doctor --fix` repair/preflight command
+- A read-only `proton-vortex doctor` check and a `proton-vortex doctor --fix` repair command
 - Saved Vortex run logs under `~/.local/share/proton-vortex/logs`
 
 ## Requirements
@@ -72,7 +74,7 @@ The installer will:
 5. Install Vortex silently into Skyrim SE's Proton prefix if Skyrim SE is found, otherwise into its own prefix
 6. Create desktop launchers
 7. Register `nxm://` links
-8. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found
+8. Install SKSE64 into the Skyrim SE game folder if Skyrim SE is found and SKSE is not already present
 
 ## Use
 
@@ -153,6 +155,8 @@ bash scripts/diagnose.sh
 bash uninstall.sh
 ```
 
+`proton-vortex doctor` is read-only. Use `proton-vortex doctor --fix` only when you want it to re-register desktop handlers and create low-risk support folders.
+
 ## Notes
 
 - This is a Proton wrapper, not a rewritten native Linux Vortex build.
@@ -160,6 +164,8 @@ bash uninstall.sh
 - SKSE64 is installed directly into the Skyrim SE folder because that is the least fussy path: `skse64_loader.exe`, the SKSE DLLs, and the `Data` folder contents are copied where Skyrim expects them.
 - Best launch path for modded play is `proton-vortex-skyrim-se launch-skse` or the **Skyrim SE SKSE (Proton)** app icon. Use Steam for first-run setup/unmodded launching, and Vortex for managing/deploying mods.
 - Updates from this repo do not delete Vortex mods, collections, or downloaded archives. They replace wrapper scripts, desktop files, and icons while reusing the same Proton prefix and app data.
+- Wrapper updates do not reinstall SKSE64 if `skse64_loader.exe` already exists. Run `proton-vortex-skyrim-se install-skse` when you want to update SKSE, or run `SKSE_AUTO_UPDATE=1 bash install.sh` to force it during install.
+- Vortex log files use unique names and old logs are pruned automatically. Set `PROTON_VORTEX_LOG_KEEP=60` if you want to keep more than 30 runs.
 - Non-Nexus archives often do not include Nexus metadata, so Vortex may not know the mod page/title automatically. The archive still installs through Vortex's normal installer pipeline.
 - Game mod deployment can still depend on the game and filesystem layout. Steam Proton games under normal Steam library folders are the target path here.
 - Flatpak Steam is detected and rejected by default because host Proton calls usually need Steam's Flatpak runtime. Use the normal Steam package for the no-hassle path.

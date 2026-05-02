@@ -16,7 +16,7 @@ This project does the Linux desktop integration:
 - Installs Vortex into the right Proton prefix
 - Creates the Proton prefix if it is missing
 - Registers `nxm://` browser links
-- Downloads SKSE64 and puts the files where Skyrim expects them
+- Downloads SKSE64 and puts the files where Skyrim expects them when SKSE is missing
 - Imports local and external mod archives into Vortex
 
 ## Why Skyrim's Proton Prefix Matters
@@ -67,7 +67,7 @@ That is why using Skyrim's prefix matters. It gives Vortex a Windows-looking hom
 11. Installs helper scripts into `~/.local/share/proton-vortex`
 12. Creates desktop launchers
 13. Registers `nxm://` links
-14. Installs SKSE64 if Skyrim SE is found
+14. Installs SKSE64 if Skyrim SE is found and SKSE is not already present
 
 ## What Happens When You Click A Nexus Mod Link
 
@@ -155,6 +155,8 @@ For a direct archive URL:
 5. Copies `skse64_*.dll` into the Skyrim folder
 6. Copies SKSE `Data` contents into Skyrim's `Data` folder
 
+`bash install.sh` skips this automatic SKSE step when `skse64_loader.exe` already exists. That keeps wrapper updates from changing game-folder SKSE files unexpectedly. Use `proton-vortex-skyrim-se install-skse` or `SKSE_AUTO_UPDATE=1 bash install.sh` when you intentionally want to refresh SKSE.
+
 `proton-vortex-skyrim-se launch-skse` runs:
 
 ```text
@@ -186,6 +188,8 @@ proton-vortex linked
 proton-vortex preflight
 proton-vortex last-log
 ```
+
+`proton-vortex doctor` only checks. `proton-vortex doctor --fix` creates low-risk support folders and repairs desktop integration.
 
 Nexus API key:
 

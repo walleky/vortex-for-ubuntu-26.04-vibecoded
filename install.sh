@@ -497,6 +497,13 @@ setup_skyrim_se() {
     return 0
   fi
 
+  if [[ -f "$SKYRIM_SE_GAME_DIR/skse64_loader.exe" && "${SKSE_AUTO_UPDATE:-0}" != "1" ]]; then
+    say "SKSE64 already exists in Skyrim SE; leaving it alone during wrapper update."
+    say "To update SKSE64 later, run: proton-vortex-skyrim-se install-skse"
+    say "To force SKSE64 during install, run: SKSE_AUTO_UPDATE=1 bash install.sh"
+    return 0
+  fi
+
   say "Setting up SKSE64 for Skyrim Special Edition..."
   if "$SKYRIM_HELPER" install-skse; then
     say "SKSE64 setup is complete."
@@ -572,6 +579,10 @@ configure_prefix_ui() {
   local proton_dir="$1"
 
   if [[ "${PROTON_VORTEX_DPI:-0}" == "0" ]]; then
+    return 0
+  fi
+  if [[ -z "${PROTON_VORTEX_DPI:-}" || "$PROTON_VORTEX_DPI" == *[!0-9]* ]]; then
+    say "Warning: PROTON_VORTEX_DPI must be a number or 0; got '$PROTON_VORTEX_DPI'. Skipping DPI registry change."
     return 0
   fi
 

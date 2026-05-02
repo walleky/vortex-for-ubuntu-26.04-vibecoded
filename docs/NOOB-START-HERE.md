@@ -47,11 +47,17 @@ If Vortex is choppy or blank, try:
 PROTON_VORTEX_DISABLE_GPU=1 proton-vortex
 ```
 
-To check and repair the setup:
+To check the setup without changing anything:
+
+```bash
+proton-vortex doctor
+proton-vortex linked
+```
+
+To repair desktop-side setup like the `nxm://` handler:
 
 ```bash
 proton-vortex doctor --fix
-proton-vortex linked
 ```
 
 ## Install
@@ -136,12 +142,18 @@ If the URL is just a webpage, download the archive in your browser first, then i
 
 ## SKSE64
 
-The installer tries to install SKSE64 automatically.
+The installer tries to install SKSE64 automatically the first time. If SKSE64 is already in the Skyrim folder, wrapper updates leave it alone.
 
 To update or reinstall SKSE64:
 
 ```bash
 proton-vortex-skyrim-se install-skse
+```
+
+To force SKSE during a wrapper reinstall:
+
+```bash
+SKSE_AUTO_UPDATE=1 bash install.sh
 ```
 
 To play Skyrim with SKSE:
@@ -179,6 +191,7 @@ Common fixes:
 - If you are unsure Vortex and Skyrim are linked, run `proton-vortex linked`
 - If you are unsure a collection is safe to start, run `proton-vortex preflight`
 - If Vortex fails or closes, run `proton-vortex last-log`
+- `proton-vortex doctor` is a read-only check; `proton-vortex doctor --fix` is the repair command
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`

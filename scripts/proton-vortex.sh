@@ -35,6 +35,20 @@ fail() {
   printf '[fail] %s\n' "$*"
 }
 
+prune_logs() {
+  local keep="${PROTON_VORTEX_LOG_KEEP:-30}"
+  local old_log
+
+  [[ "$keep" =~ ^[0-9]+$ ]] || keep=30
+  ((keep > 0)) || return 0
+  [[ -d "$LOG_DIR" ]] || return 0
+
+  while IFS= read -r old_log; do
+    [[ -n "$old_log" ]] || continue
+    rm -f -- "$old_log"
+  done < <(find "$LOG_DIR" -maxdepth 1 -type f -name 'vortex-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk -v keep="$keep" 'NR > keep {$1=""; sub(/^ /, ""); print}')
+}
+
 load_config() {
   if [[ ! -r "$CONFIG_FILE" ]]; then
     die "Config not found at $CONFIG_FILE. Run install.sh first."
@@ -96,7 +110,8 @@ run_vortex() {
   fi
 
   mkdir -p "$LOG_DIR"
-  log_file="$LOG_DIR/vortex-$(date +%Y%m%d-%H%M%S).log"
+  prune_logs
+  log_file="$(mktemp "$LOG_DIR/vortex-$(date +%Y%m%d-%H%M%S).XXXXXX.log")" || die "Could not create a Vortex log file in $LOG_DIR"
   say_err "Vortex log: $log_file"
 
   set +e
@@ -111,6 +126,7 @@ run_vortex() {
   if ((status != 0)); then
     say_err "Vortex exited with code $status. See log: $log_file"
   fi
+  prune_logs
   return "$status"
 }
 
@@ -202,15 +218,16 @@ vortex_roaming_dir() {
 }
 
 ensure_support_dirs() {
+  local include_vortex="${1:-0}"
   local roaming
 
   mkdir -p "$LOG_DIR" "$APP_HOME/downloads/external" "$APP_HOME/downloads/nexus"
 
-  if [[ -d "$COMPAT_DATA/pfx/drive_c" ]]; then
+  if [[ "$include_vortex" == "1" && -d "$COMPAT_DATA/pfx/drive_c" ]]; then
     roaming="$(vortex_roaming_dir)"
     mkdir -p "$roaming/downloads"
     if [[ -n "$VORTEX_GAME_ID" ]]; then
-      mkdir -p "$roaming/$VORTEX_GAME_ID/mods" "$roaming/$VORTEX_GAME_ID/profiles"
+      mkdir -p "$roaming/$VORTEX_GAME_ID/mods"
     fi
   fi
 }
@@ -233,7 +250,7 @@ doctor() {
   local linked=0
 
   if [[ "$fix" == "--fix" ]]; then
-    ensure_support_dirs
+    ensure_support_dirs 1
     if command -v xdg-mime >/dev/null 2>&1 && [[ -f "$NXM_DESKTOP" ]]; then
       xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm || true
       xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm-protocol || true
@@ -282,13 +299,12 @@ doctor() {
     status=1
   fi
 
-  ensure_support_dirs
-  ok "logs: $LOG_DIR"
+  [[ -d "$LOG_DIR" ]] && ok "logs: $LOG_DIR" || warn "logs directory is not created yet; it will be created on next Vortex launch or by doctor --fix"
 
   if [[ -n "$VORTEX_GAME_ID" && -d "$COMPAT_DATA/pfx/drive_c" ]]; then
     roaming="$(vortex_roaming_dir)"
     staging="$roaming/$VORTEX_GAME_ID/mods"
-    [[ -d "$staging" ]] && ok "suggested staging folder: $staging" || warn "suggested staging folder missing: $staging"
+    [[ -d "$staging" ]] && ok "suggested staging folder: $staging" || warn "suggested staging folder missing: $staging (doctor --fix can create it, or Vortex can create its own staging folder)"
     if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" && -d "$staging" ]]; then
       if same_device "$SKYRIM_SE_GAME_DIR" "$staging"; then
         ok "staging and Skyrim are on the same filesystem"
@@ -330,6 +346,9 @@ self_update() {
     die "Self-update needs a git clone source directory. Use: git pull && bash install.sh"
   fi
   command -v git >/dev/null 2>&1 || die "git is not installed."
+  if [[ -n "$(git -C "$INSTALL_SOURCE_DIR" status --porcelain)" ]]; then
+    die "Self-update stopped because $INSTALL_SOURCE_DIR has local changes. Commit/stash them, or run git status there and update manually."
+  fi
   git -C "$INSTALL_SOURCE_DIR" pull --ff-only
   bash "$INSTALL_SOURCE_DIR/install.sh"
 }

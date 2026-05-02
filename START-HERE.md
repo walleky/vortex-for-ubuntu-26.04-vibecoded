@@ -26,6 +26,7 @@ If something breaks:
 
 ```bash
 bash scripts/diagnose.sh
+proton-vortex doctor
 proton-vortex doctor --fix
 proton-vortex linked
 ```
@@ -33,3 +34,7 @@ proton-vortex linked
 For AI assistants or maintainers, read:
 
 [docs/AI-MAINTAINER-GUIDE.md](docs/AI-MAINTAINER-GUIDE.md)
+
+For update safety notes, read:
+
+[docs/STABILITY-COMPATIBILITY.md](docs/STABILITY-COMPATIBILITY.md)

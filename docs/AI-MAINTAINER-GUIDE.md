@@ -30,7 +30,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Writes desktop files
 - Writes hicolor SVG app icons and refreshes icon cache when available
 - Registers `nxm://`
-- Tries SKSE64 setup
+- Tries SKSE64 setup only when Skyrim is found and SKSE is not already present, unless `SKSE_AUTO_UPDATE=1`
 
 `scripts/proton-vortex.sh`
 
@@ -44,6 +44,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Captures Vortex/Proton stdout and stderr to `~/.local/share/proton-vortex/logs`
 - Provides `doctor`, `doctor --fix`, `linked`, `preflight`, `last-log`, and `self-update`
 - Runs Vortex through Proton
+- Keeps plain `doctor` read-only; put state repair in `doctor --fix`
 
 `scripts/mod-intake.py`
 
@@ -125,6 +126,8 @@ file:///Z:/home/user/file.7z
 ```
 
 Keep this contract stable unless every caller is updated.
+
+`proton-vortex doctor` must stay read-only.
 
 `proton-vortex doctor --fix` may repair only low-risk Linux-side integration:
 
@@ -213,6 +216,18 @@ SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse
 
 Do not delete user files from the Skyrim folder. Updating SKSE overwrites only SKSE loader/DLL files and copies SKSE `Data` contents.
 
+`install.sh` should skip automatic SKSE work when `skse64_loader.exe` already exists. Users can explicitly refresh SKSE with:
+
+```bash
+proton-vortex-skyrim-se install-skse
+```
+
+or force it during install with:
+
+```bash
+SKSE_AUTO_UPDATE=1 bash install.sh
+```
+
 ## Desktop Integration
 
 NXM handler:
@@ -300,6 +315,10 @@ NXM does nothing:
 SKSE missing:
 
 - Run `proton-vortex-skyrim-se install-skse`
+
+Need to force SKSE during wrapper install:
+
+- Run `SKSE_AUTO_UPDATE=1 bash install.sh`
 
 Collection not fully automatic:
 

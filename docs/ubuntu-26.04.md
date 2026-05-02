@@ -92,13 +92,15 @@ Run:
 proton-vortex doctor
 ```
 
+That check is read-only.
+
 To repair safe desktop-side issues:
 
 ```bash
 proton-vortex doctor --fix
 ```
 
-That creates support folders, refreshes the desktop database, and re-registers the `nxm://` handler.
+That creates low-risk support folders, refreshes the desktop database, and re-registers the `nxm://` handler.
 
 Before starting a large collection:
 
@@ -168,6 +170,12 @@ SKSE_FLAVOR=se proton-vortex-skyrim-se install-skse
 ```
 
 The helper downloads from the official SKSE page, extracts the archive, and copies the loader, DLL files, and `Data` folder contents into the Skyrim SE game folder.
+
+Wrapper updates leave SKSE64 alone when `skse64_loader.exe` is already present. To force SKSE64 during install:
+
+```bash
+SKSE_AUTO_UPDATE=1 bash install.sh
+```
 
 ## NXM Links
 
