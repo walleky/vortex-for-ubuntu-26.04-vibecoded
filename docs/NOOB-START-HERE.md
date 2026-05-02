@@ -60,32 +60,11 @@ In Vortex:
 3. Let Vortex use the suggested deployment method
 4. Do not move Vortex folders around until everything works
 
-## Set Up Nexus API
+## Nexus API
 
-This is optional, but recommended.
+Skip this for normal use. Vortex handles Nexus links directly, and that is the no-hassle path.
 
-Run:
-
-```bash
-proton-vortex api-key set
-proton-vortex api validate
-```
-
-Paste your Nexus Mods personal API key when asked.
-
-What this does:
-
-- Lets you test the Nexus API from Linux
-- Lets Linux download normal Nexus mod archives directly if you explicitly turn that mode on
-- Falls back to Vortex automatically if Nexus refuses direct API download
-
-The normal no-hassle mode still sends Nexus mod links to Vortex directly because Vortex keeps better Nexus metadata that way. API download mode is for advanced testing:
-
-```bash
-PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
-```
-
-It does not bypass Nexus limits. Free Nexus accounts still need normal website-generated links for some downloads.
+You do not need to paste a Nexus API key into this wrapper just to download mods. Log into Nexus inside Vortex if Vortex asks.
 
 ## Download Mods From Nexus
 
@@ -96,7 +75,7 @@ On a Nexus mod page:
 3. Pick **Vortex NXM Handler**
 4. Make it the default if your browser asks
 
-The helper passes the original `nxm://` link to Vortex. That is the best default because Vortex keeps Nexus update tracking, requirements, and collection metadata.
+The helper passes the original `nxm://` link to Vortex and asks Vortex to download and install it. That is the best default because Vortex keeps Nexus update tracking, requirements, and collection metadata.
 
 ## Install Nexus Collections
 

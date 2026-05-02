@@ -78,13 +78,13 @@ proton-vortex 'nxm://...'
 
 Then `proton-vortex` asks `mod-intake.py` what to do.
 
-For normal Nexus mod files, the helper normally sends the original link to:
+For normal Nexus mod files, the helper sends the original link to:
 
 ```text
-Vortex.exe --download nxm://...
+Vortex.exe --install nxm://...
 ```
 
-That keeps Vortex's native Nexus metadata, update tracking, dependencies, and collection behavior.
+Vortex's documented `--install` command downloads and installs NXM links. That keeps Vortex's native Nexus metadata, update tracking, dependencies, and collection behavior.
 
 Advanced Linux-side API download is opt-in:
 
@@ -101,7 +101,7 @@ In that mode, the helper:
 5. Saves a metadata sidecar next to the archive
 6. Opens Vortex with `--install file:///Z:/...`
 
-If the API path fails, it falls back to Vortex's native NXM downloader.
+If the API path fails, it falls back to Vortex's native download-and-install flow.
 
 For Nexus Collections, the helper sends the collection link straight to:
 

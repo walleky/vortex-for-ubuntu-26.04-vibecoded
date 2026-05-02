@@ -101,20 +101,22 @@ Re-register it with:
 xdg-mime default proton-vortex-nxm.desktop x-scheme-handler/nxm
 ```
 
-Normal mod links are sent to Vortex as native downloads. Nexus collection links are sent to Vortex's install workflow.
+Normal mod links are sent to Vortex's native download-and-install workflow. Nexus collection links are sent to Vortex's collection install workflow.
 
 Nexus Premium still controls whether collections can download automatically in bulk. Free accounts may still need to click through individual mod downloads in the collection flow.
 
-## Linux Nexus API Intake
+## Advanced Nexus API Checks
 
-The NXM handler has a Linux-side intake helper:
+Normal Nexus downloads do not need a Nexus API key in this wrapper. Vortex handles normal `nxm://` links directly.
+
+The NXM handler also has a Linux-side API helper for diagnostics:
 
 ```bash
 proton-vortex api-key set
 proton-vortex api validate
 ```
 
-Normal Nexus mod NXM links are passed to Vortex by default so Vortex keeps its own Nexus metadata. The Linux API path is opt-in:
+The Linux API download path is intentionally hidden behind an environment variable because Vortex tracks native NXM installs better:
 
 ```bash
 PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
@@ -128,7 +130,7 @@ GET /v1/games/{game}/mods/{mod_id}/files/{file_id}
 GET /v1/games/{game}/mods/{mod_id}/files/{file_id}/download_link
 ```
 
-For free Nexus accounts, direct download links require the website-generated NXM `key` and `expires` query values. If the API call fails, no API key is configured, or `PROTON_VORTEX_API_NXM=1` is not set, the wrapper falls back to Vortex's own NXM downloader.
+For free Nexus accounts, direct download links require the website-generated NXM `key` and `expires` query values. If the API call fails, no API key is configured, or `PROTON_VORTEX_API_NXM=1` is not set, the wrapper uses Vortex's own download-and-install flow.
 
 Downloaded Nexus archives are stored under:
 

@@ -359,8 +359,8 @@ def write_metadata(archive: Path, metadata: dict[str, object]) -> None:
 def resolve_nxm(url: str) -> None:
     nxm = parse_nxm(url)
     if not nxm:
-        warn("Could not parse NXM URL; passing it to Vortex.")
-        action("download", url)
+        warn("Could not parse NXM URL; asking Vortex to handle it directly.")
+        action("install", url)
         return
 
     if nxm["kind"] == "collection":
@@ -368,15 +368,14 @@ def resolve_nxm(url: str) -> None:
         return
 
     if not env_truthy("PROTON_VORTEX_API_NXM"):
-        warn("Passing Nexus mod NXM to Vortex's native downloader to preserve Nexus metadata.")
-        warn("Set PROTON_VORTEX_API_NXM=1 to force Linux-side API download for normal mod files.")
-        action("download", url)
+        warn("Passing Nexus mod NXM to Vortex's native download-and-install flow.")
+        action("install", url)
         return
 
     api_key = read_api_key(required=False)
     if not api_key:
-        warn("No Nexus API key configured; passing NXM URL to Vortex's native downloader.")
-        action("download", url)
+        warn("No Nexus API key configured; passing NXM URL to Vortex's native download-and-install flow.")
+        action("install", url)
         return
 
     game = str(nxm["game"])
@@ -406,8 +405,8 @@ def resolve_nxm(url: str) -> None:
         action("install-url", linux_path_to_vortex_file_url(archive))
     except ApiError as exc:
         warn(f"Nexus API download failed: {exc}")
-        warn("Falling back to Vortex's native NXM downloader.")
-        action("download", url)
+        warn("Falling back to Vortex's native download-and-install flow.")
+        action("install", url)
 
 
 def resolve_http(url: str) -> None:

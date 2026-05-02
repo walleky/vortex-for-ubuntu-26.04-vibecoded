@@ -154,16 +154,10 @@ Usage:
   proton-vortex /path/to/mod.7z
   proton-vortex 'https://example.com/mod.zip'
   proton-vortex import /path/to/mod.zip
-  proton-vortex api-key set
-  proton-vortex api validate
-  proton-vortex --download 'nxm://...'
-  proton-vortex --install 'nxm://...'
   proton-vortex --print-info
 
-Normal Nexus NXM files are sent to Vortex's native downloader by default so
-Vortex keeps Nexus metadata. Set PROTON_VORTEX_API_NXM=1 to force Linux-side
-API download for normal mod files. Collections still go straight to Vortex's
-collection workflow.
+Normal Nexus NXM files are sent to Vortex's native download-and-install flow.
+Collections go straight to Vortex's collection workflow.
 EOF_HELP
       return 0
       ;;

@@ -29,7 +29,7 @@ If you are an AI assistant or maintainer:
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
 - A normal app launcher named **Vortex (Proton)**
 - A registered `nxm://` handler for Nexus Mods browser links
-- Linux-side NXM intake with optional Nexus Mods API download support
+- Automatic Vortex NXM download/install handoff
 - Local archive and direct external URL import for non-Nexus mods
 - A file-manager **Import Mod with Vortex (Proton)** entry for common archive types
 - A terminal command named `proton-vortex`
@@ -81,7 +81,7 @@ For Nexus Mods:
 2. Click **Mod Manager Download**
 3. Accept the browser prompt to open the link with **Vortex NXM Handler**
 
-Normal Nexus mod NXM links are passed to Vortex's native downloader by default. That preserves Vortex's Nexus metadata, update tracking, dependencies, and collection behavior better than importing a local archive.
+Normal Nexus mod NXM links are passed to Vortex's native download-and-install command. That means one Nexus click should make Vortex download and install the mod while preserving Nexus metadata, update tracking, dependencies, and collection behavior.
 
 For Nexus Collections:
 
@@ -96,32 +96,9 @@ Firefox may ask once which app should handle `nxm` links. Choose the Vortex hand
 
 ## Nexus API Key
 
-For API checks and advanced Linux-side download testing:
+You do not need this for normal Nexus downloads. Vortex handles normal `nxm://` links itself.
 
-```bash
-proton-vortex api-key set
-proton-vortex api validate
-```
-
-The key is stored at:
-
-```text
-~/.local/share/proton-vortex/nexus-api-key
-```
-
-with `0600` permissions. You can also avoid storing it and use:
-
-```bash
-NEXUS_API_KEY=your_key PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
-```
-
-By default, a configured API key does not replace Vortex's native NXM flow. To force Linux-side API download for a normal mod file, run:
-
-```bash
-PROTON_VORTEX_API_NXM=1 proton-vortex 'nxm://...'
-```
-
-That mode downloads the archive to Linux, writes a metadata sidecar, and asks Vortex to import it through a `file:///Z:/...` URL. It is useful for testing and direct URL handling, but Vortex may track it less richly than a native NXM download. Free Nexus accounts still need the `key` and `expires` values inside a website-generated NXM link for direct API download links. Premium accounts can usually generate file download links directly through the API.
+The no-hassle path is: log into Nexus inside Vortex if Vortex asks, then click **Mod Manager Download** on the Nexus page.
 
 ## Non-Nexus Mods
 
@@ -151,8 +128,6 @@ Then it opens Vortex with a Proton-readable `file:///Z:/...` archive URL. For pa
 proton-vortex
 proton-vortex 'nxm://example'
 proton-vortex import ~/Downloads/mod.7z
-proton-vortex api-key set
-proton-vortex api validate
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se launch-skse
 bash scripts/diagnose.sh
@@ -173,7 +148,7 @@ bash uninstall.sh
 
 ## Sources
 
-- Vortex command-line support, including `--download` for NXM URLs: <https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-Troubleshooting-Command-Line-Parameters>
+- Vortex command-line support, including `--download` and `--install` for NXM URLs: <https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-Troubleshooting-Command-Line-Parameters>
 - Vortex releases: <https://github.com/Nexus-Mods/Vortex/releases>
 - SKSE official downloads and install notes: <https://skse.silverlock.org/>
 - SKSE64 Nexus page install notes: <https://www.nexusmods.com/skyrimspecialedition/mods/30379>

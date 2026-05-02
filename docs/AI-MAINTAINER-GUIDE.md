@@ -130,11 +130,11 @@ nxm://skyrimspecialedition/mods/<mod_id>/files/<file_id>?key=...&expires=...
 Default behavior:
 
 ```text
-download
+install
 nxm://...
 ```
 
-This preserves Vortex's native Nexus metadata, update tracking, dependencies, and collection behavior.
+This calls Vortex with `--install nxm://...`, which uses Vortex's native download-and-install flow and preserves Nexus metadata, update tracking, dependencies, and collection behavior.
 
 With `PROTON_VORTEX_API_NXM=1` and an API key:
 
@@ -147,11 +147,11 @@ With `PROTON_VORTEX_API_NXM=1` and an API key:
 Without the opt-in flag, without API key, or on API failure:
 
 ```text
-download
+install
 nxm://...
 ```
 
-This falls back to Vortex.
+This falls back to Vortex's native download-and-install flow.
 
 Collection link:
 
