@@ -82,6 +82,10 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 
 - Plain-English architecture
 
+`docs/SKSE-AND-DEPLOYMENT.md`
+
+- SKSE launch verification and Vortex deployment troubleshooting
+
 `docs/ubuntu-26.04.md`
 
 - Ubuntu-specific notes
@@ -315,6 +319,15 @@ NXM does nothing:
 SKSE missing:
 
 - Run `proton-vortex-skyrim-se install-skse`
+- Verify in game with `getskseversion`
+
+Mods downloaded but not active:
+
+- Confirm mods are installed and enabled in Vortex
+- Confirm plugins are enabled in Vortex's Plugins tab
+- Click **Deploy Mods**
+- Launch with `proton-vortex-skyrim-se launch-skse`
+- Run `proton-vortex preflight` to check prefix and staging placement
 
 Need to force SKSE during wrapper install:
 

@@ -165,6 +165,14 @@ skse64_loader.exe
 
 through the Skyrim SE Proton prefix.
 
+To verify SKSE, launch with the helper, open Skyrim's console, and run:
+
+```text
+getskseversion
+```
+
+If Vortex downloaded mods but the game looks unchanged, Vortex still needs the normal deployment chain: installed mods, enabled mods, enabled plugins, then **Deploy Mods**.
+
 ## Data Locations
 
 Main config:

@@ -115,6 +115,15 @@ If Vortex crashes or behaves strangely:
 proton-vortex last-log
 ```
 
+If Vortex downloaded mods but Skyrim did not change:
+
+```bash
+proton-vortex preflight
+proton-vortex-skyrim-se diagnose
+```
+
+Then check Vortex's Mods tab, Plugins tab, and **Deploy Mods** button.
+
 If this project was installed from a git clone:
 
 ```bash
@@ -175,6 +184,12 @@ Wrapper updates leave SKSE64 alone when `skse64_loader.exe` is already present. 
 
 ```bash
 SKSE_AUTO_UPDATE=1 bash install.sh
+```
+
+To verify SKSE in-game, launch through `proton-vortex-skyrim-se launch-skse`, open Skyrim's console with `~`, and run:
+
+```text
+getskseversion
 ```
 
 ## NXM Links

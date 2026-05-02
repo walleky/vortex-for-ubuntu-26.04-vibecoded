@@ -305,6 +305,11 @@ diagnose() {
     say "  game dir:    $game_dir"
     say "  compatdata:  $compat_data"
     skse_status "$game_dir"
+    say ""
+    say "To verify SKSE in-game:"
+    say "  1. Launch: proton-vortex-skyrim-se launch-skse"
+    say "  2. Open the Skyrim console with ~"
+    say "  3. Run: getskseversion"
   else
     say "  game dir:    not found"
   fi

@@ -76,6 +76,6 @@ PROTON_PREFER_GE=1 bash install.sh
 - Vortex is still the Windows app running through Proton, so occasional Electron UI jank can happen.
 - Nexus Premium controls fully automatic collection downloads; the wrapper does not bypass Nexus account limits.
 - Vortex hardlink deployment needs the staging folder and Skyrim folder on the same filesystem.
+- Downloaded mods still need Vortex's normal install, enable, plugin-enable, and deploy steps before Skyrim can load them.
 - Flatpak Steam is rejected by default because host-launched Proton is not reliable with Flatpak's runtime.
 - Non-Nexus archives may lack metadata, so Vortex may not know their Nexus page or update status.
-

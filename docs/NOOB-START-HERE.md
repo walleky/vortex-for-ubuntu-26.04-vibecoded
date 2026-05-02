@@ -170,6 +170,20 @@ Skyrim SE SKSE (Proton)
 
 That is the best way to play modded Skyrim. Use Vortex to install/deploy mods. Use Steam mostly for first launch setup or plain unmodded Skyrim.
 
+To check that SKSE really loaded, open the Skyrim console with `~` and run:
+
+```text
+getskseversion
+```
+
+If Vortex downloaded mods but Skyrim still looks vanilla:
+
+1. In Vortex, make sure the mods are installed
+2. Make sure the mods are enabled
+3. Open the Plugins tab and enable the plugins
+4. Click **Deploy Mods**
+5. Launch with `proton-vortex-skyrim-se launch-skse`
+
 For current Steam Skyrim Special Edition, use the default SKSE install. If you intentionally downgraded Skyrim to `1.5.97`, run:
 
 ```bash

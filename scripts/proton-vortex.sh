@@ -246,6 +246,7 @@ doctor() {
   local handler=""
   local roaming=""
   local staging=""
+  local staged_count=""
   local free_space=""
   local linked=0
 
@@ -271,6 +272,13 @@ doctor() {
 
   if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -f "$SKYRIM_SE_GAME_DIR/SkyrimSE.exe" ]]; then
     ok "Skyrim SE: $SKYRIM_SE_GAME_DIR"
+    [[ -d "$SKYRIM_SE_GAME_DIR/Data" ]] && ok "Skyrim Data folder: $SKYRIM_SE_GAME_DIR/Data" || { warn "Skyrim Data folder missing. Run Skyrim once from Steam, then rerun install.sh."; status=1; }
+    if [[ -f "$SKYRIM_SE_GAME_DIR/skse64_loader.exe" ]]; then
+      ok "SKSE loader: $SKYRIM_SE_GAME_DIR/skse64_loader.exe"
+    else
+      warn "SKSE loader missing. Run: proton-vortex-skyrim-se install-skse"
+      status=1
+    fi
   else
     warn "Skyrim SE not detected in config. Install/run Skyrim in Steam, then rerun bash install.sh."
     status=1
@@ -305,6 +313,14 @@ doctor() {
     roaming="$(vortex_roaming_dir)"
     staging="$roaming/$VORTEX_GAME_ID/mods"
     [[ -d "$staging" ]] && ok "suggested staging folder: $staging" || warn "suggested staging folder missing: $staging (doctor --fix can create it, or Vortex can create its own staging folder)"
+    if [[ -d "$staging" ]]; then
+      staged_count="$(find "$staging" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d '[:space:]')"
+      if [[ "${staged_count:-0}" != "0" ]]; then
+        ok "staged mod folders: $staged_count"
+      else
+        warn "staged mod folders: 0. Downloads may exist, but Vortex still needs mods installed/enabled/deployed."
+      fi
+    fi
     if [[ -n "${SKYRIM_SE_GAME_DIR:-}" && -d "$SKYRIM_SE_GAME_DIR" && -d "$staging" ]]; then
       if same_device "$SKYRIM_SE_GAME_DIR" "$staging"; then
         ok "staging and Skyrim are on the same filesystem"
@@ -325,6 +341,7 @@ doctor() {
   say "  - Vortex must be logged into Nexus."
   say "  - Vortex should manage Skyrim Special Edition."
   say "  - Use Hardlink Deployment when Vortex asks."
+  say "  - In Vortex, downloaded mods still need Installed, Enabled, Plugins enabled, then Deploy Mods."
   say "  - Nexus Free accounts may still require manual collection download clicks."
   if ((linked == 1)); then
     say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"
