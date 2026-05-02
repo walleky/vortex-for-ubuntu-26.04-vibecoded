@@ -39,6 +39,10 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+canonical_dir() {
+  (cd "$1" && pwd -P)
+}
+
 check_platform() {
   if [[ "$(uname -s)" != "Linux" ]]; then
     die "This installer must be run on Ubuntu/Linux."
@@ -92,7 +96,7 @@ find_steam_root() {
 
   for root in "${candidates[@]}"; do
     if [[ -n "$root" && -d "$root/steamapps" ]]; then
-      cd "$root" && pwd -P
+      canonical_dir "$root"
       return 0
     fi
   done
@@ -139,7 +143,7 @@ select_latest_proton_bin() {
   local bin
   for bin in "$@"; do
     printf '%s\t%s\n' "$(proton_tool_name "$bin")" "$bin"
-  done | sort -V -k1,1 | tail -n 1 | cut -f2-
+  done | sort -t $'\t' -V -k1,1 | tail -n 1 | cut -f2-
 }
 
 choose_proton_dir() {
@@ -156,11 +160,11 @@ choose_proton_dir() {
 
   if [[ -n "${PROTON_PATH:-}" ]]; then
     if [[ -x "$PROTON_PATH/proton" ]]; then
-      cd "$PROTON_PATH" && pwd -P
+      canonical_dir "$PROTON_PATH"
       return 0
     fi
     if [[ -x "$PROTON_PATH" && "$(basename -- "$PROTON_PATH")" == "proton" ]]; then
-      cd "$(dirname -- "$PROTON_PATH")" && pwd -P
+      canonical_dir "$(dirname -- "$PROTON_PATH")"
       return 0
     fi
     die "PROTON_PATH is set but does not point to a Proton directory or proton executable: $PROTON_PATH"
@@ -211,7 +215,7 @@ choose_proton_dir() {
     selected="$(select_latest_proton_bin "${proton_bins[@]}")"
   fi
 
-  cd "$(dirname -- "$selected")" && pwd -P
+  canonical_dir "$(dirname -- "$selected")"
 }
 
 proton_major_version() {
@@ -603,4 +607,6 @@ main() {
   fi
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
