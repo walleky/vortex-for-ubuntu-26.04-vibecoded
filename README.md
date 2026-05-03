@@ -6,6 +6,16 @@ A small Linux wrapper that installs and runs Nexus Mods Vortex through Steam Pro
 
 This chooses Vortex instead of Mod Organizer 2 because Vortex has documented NXM URL commands, which makes browser integration and Nexus Collections much simpler.
 
+## Windows MCP Server
+
+This repo also includes a separate Windows MCP server for OpenClaw or any stdio MCP client:
+
+```text
+vortex-skyrimse-mcp/
+```
+
+It can diagnose a Windows Vortex + Skyrim SE setup, inventory mods, inspect plugin masters/readmes/FOMODs, report redundant mods and file conflicts, and dry-run/apply narrow Skyrim INI fixes with backups.
+
 ## Start Here
 
 If you just want it working:

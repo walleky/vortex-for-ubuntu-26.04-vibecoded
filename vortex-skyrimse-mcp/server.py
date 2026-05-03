@@ -1,0 +1,1303 @@
+#!/usr/bin/env python3
+"""
+Vortex Skyrim SE MCP server for Windows.
+
+This is a dependency-free MCP stdio server. It exposes safe tools for an MCP
+client to inspect a Vortex-managed Skyrim Special Edition install, diagnose
+deployment/plugin/INI issues, and build conflict/redundancy reports.
+
+Write actions are intentionally narrow and dry-run by default.
+"""
+
+from __future__ import annotations
+
+import configparser
+import datetime as _dt
+import hashlib
+import json
+import os
+import re
+import shutil
+import struct
+import sys
+import traceback
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
+
+try:
+    import winreg  # type: ignore
+except Exception:  # pragma: no cover - non-Windows test hosts
+    winreg = None
+
+
+SERVER_NAME = "vortex-skyrimse-mcp"
+SERVER_VERSION = "0.1.0"
+PROTOCOL_VERSION = "2025-06-18"
+SKYRIM_APP_ID = "489830"
+GAME_ID = "skyrimse"
+MAX_DEFAULT_TEXT_BYTES = 200_000
+MAX_DEFAULT_FILES = 40_000
+
+
+class ToolError(Exception):
+    """Business error returned as a MCP tool error."""
+
+
+def eprint(*args: object) -> None:
+    print(*args, file=sys.stderr, flush=True)
+
+
+def now_stamp() -> str:
+    return _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def expand_path(value: Optional[str]) -> Optional[Path]:
+    if not value:
+        return None
+    return Path(os.path.expandvars(os.path.expanduser(value))).resolve()
+
+
+def path_exists(path: Optional[Path]) -> bool:
+    return bool(path and path.exists())
+
+
+def read_text(path: Path, max_bytes: int = MAX_DEFAULT_TEXT_BYTES) -> str:
+    data = path.read_bytes()[:max_bytes]
+    for enc in ("utf-8-sig", "utf-16", "cp1252", "latin-1"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def rel_to(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root)).replace("\\", "/")
+    except ValueError:
+        return str(path)
+
+
+def is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def json_content(data: Any, is_error: bool = False) -> Dict[str, Any]:
+    text = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    return {
+        "content": [{"type": "text", "text": text}],
+        "structuredContent": data,
+        "isError": is_error,
+    }
+
+
+def text_content(text: str, is_error: bool = False) -> Dict[str, Any]:
+    return {"content": [{"type": "text", "text": text}], "isError": is_error}
+
+
+def registry_value(root: Any, subkey: str, name: str) -> Optional[str]:
+    if winreg is None:
+        return None
+    try:
+        with winreg.OpenKey(root, subkey) as key:
+            value, _kind = winreg.QueryValueEx(key, name)
+            if value:
+                return str(value)
+    except OSError:
+        return None
+    return None
+
+
+def find_steam_root() -> Optional[Path]:
+    candidates: List[str] = []
+    if winreg is not None:
+        candidates.extend(
+            value
+            for value in [
+                registry_value(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
+                registry_value(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamExe"),
+                registry_value(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+            ]
+            if value
+        )
+    candidates.extend(
+        [
+            r"C:\Program Files (x86)\Steam",
+            r"C:\Program Files\Steam",
+        ]
+    )
+
+    for candidate in candidates:
+        path = Path(candidate)
+        if path.name.lower() == "steam.exe":
+            path = path.parent
+        if (path / "steamapps").exists():
+            return path.resolve()
+    return None
+
+
+def acf_value(text: str, key: str) -> Optional[str]:
+    match = re.search(rf'"{re.escape(key)}"\s+"([^"]+)"', text, flags=re.IGNORECASE)
+    return match.group(1) if match else None
+
+
+def steam_libraries(steam_root: Optional[Path]) -> List[Path]:
+    if not steam_root:
+        return []
+    libs = [steam_root]
+    library_file = steam_root / "steamapps" / "libraryfolders.vdf"
+    if library_file.exists():
+        text = read_text(library_file)
+        for match in re.finditer(r'"path"\s+"([^"]+)"', text, flags=re.IGNORECASE):
+            raw = match.group(1).replace(r"\\", "\\")
+            path = Path(raw)
+            if (path / "steamapps").exists():
+                libs.append(path.resolve())
+    seen: set[str] = set()
+    result: List[Path] = []
+    for lib in libs:
+        key = str(lib).lower()
+        if key not in seen:
+            seen.add(key)
+            result.append(lib)
+    return result
+
+
+def find_skyrim_dir(override: Optional[str] = None) -> Optional[Path]:
+    override_path = expand_path(override)
+    if override_path and (override_path / "SkyrimSE.exe").exists():
+        return override_path
+
+    reg = registry_value(
+        winreg.HKEY_LOCAL_MACHINE if winreg else None,
+        r"Software\WOW6432Node\Bethesda Softworks\Skyrim Special Edition",
+        "Installed Path",
+    ) if winreg else None
+    if reg:
+        path = Path(reg)
+        if (path / "SkyrimSE.exe").exists():
+            return path.resolve()
+
+    steam_root = find_steam_root()
+    for lib in steam_libraries(steam_root):
+        manifest = lib / "steamapps" / f"appmanifest_{SKYRIM_APP_ID}.acf"
+        if not manifest.exists():
+            continue
+        install_dir = acf_value(read_text(manifest), "installdir") or "Skyrim Special Edition"
+        game_dir = lib / "steamapps" / "common" / install_dir
+        if (game_dir / "SkyrimSE.exe").exists():
+            return game_dir.resolve()
+
+    for candidate in [
+        Path(r"C:\Program Files (x86)\Steam\steamapps\common\Skyrim Special Edition"),
+        Path(r"C:\Program Files\Steam\steamapps\common\Skyrim Special Edition"),
+    ]:
+        if (candidate / "SkyrimSE.exe").exists():
+            return candidate.resolve()
+    return None
+
+
+def default_vortex_appdata(override: Optional[str] = None) -> Optional[Path]:
+    override_path = expand_path(override)
+    if override_path:
+        return override_path
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        return (Path(appdata) / "Vortex").resolve()
+    return None
+
+
+def default_local_appdata() -> Optional[Path]:
+    value = os.environ.get("LOCALAPPDATA")
+    return Path(value).resolve() if value else None
+
+
+def default_documents() -> Optional[Path]:
+    home = Path.home()
+    candidates = [
+        home / "Documents",
+        home / "OneDrive" / "Documents",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path.resolve()
+    return candidates[0].resolve()
+
+
+def default_my_games_dir(override: Optional[str] = None) -> Optional[Path]:
+    override_path = expand_path(override)
+    if override_path:
+        return override_path
+    docs = default_documents()
+    return (docs / "My Games" / "Skyrim Special Edition").resolve() if docs else None
+
+
+def staging_candidates(
+    vortex_appdata: Optional[Path],
+    override: Optional[str] = None,
+) -> List[Path]:
+    result: List[Path] = []
+    override_path = expand_path(override)
+    if override_path:
+        result.append(override_path)
+    if vortex_appdata:
+        result.extend(
+            [
+                vortex_appdata / GAME_ID / "mods",
+                vortex_appdata / "mods" / GAME_ID,
+            ]
+        )
+    seen: set[str] = set()
+    unique: List[Path] = []
+    for path in result:
+        key = str(path).lower()
+        if key not in seen:
+            seen.add(key)
+            unique.append(path.resolve())
+    return unique
+
+
+def choose_staging_dir(vortex_appdata: Optional[Path], override: Optional[str] = None) -> Optional[Path]:
+    for candidate in staging_candidates(vortex_appdata, override):
+        if candidate.exists():
+            return candidate
+    candidates = staging_candidates(vortex_appdata, override)
+    return candidates[0] if candidates else None
+
+
+def plugin_state_paths(local_appdata: Optional[Path] = None) -> Dict[str, Optional[str]]:
+    base = local_appdata or default_local_appdata()
+    if not base:
+        return {"plugins_txt": None, "loadorder_txt": None}
+    skyrim = base / "Skyrim Special Edition"
+    return {
+        "plugins_txt": str(skyrim / "plugins.txt") if (skyrim / "plugins.txt").exists() else None,
+        "loadorder_txt": str(skyrim / "loadorder.txt") if (skyrim / "loadorder.txt").exists() else None,
+    }
+
+
+def detect_environment(args: Dict[str, Any]) -> Dict[str, Any]:
+    vortex_appdata = default_vortex_appdata(args.get("vortex_appdata"))
+    skyrim_dir = find_skyrim_dir(args.get("skyrim_dir"))
+    staging_dir = choose_staging_dir(vortex_appdata, args.get("staging_dir"))
+    local_appdata = default_local_appdata()
+    my_games = default_my_games_dir(args.get("my_games_dir"))
+    steam_root = find_steam_root()
+    issues: List[str] = []
+
+    if not path_exists(skyrim_dir):
+        issues.append("SkyrimSE.exe was not found. Run Skyrim SE once through Steam, or pass skyrim_dir.")
+    elif not (skyrim_dir / "Data").exists():
+        issues.append("Skyrim Data folder is missing under the detected game directory.")
+
+    if not path_exists(vortex_appdata):
+        issues.append("Vortex AppData folder was not found. Start Vortex once, or pass vortex_appdata.")
+    if not path_exists(staging_dir):
+        issues.append("Vortex Skyrim SE staging folder was not found. Pass staging_dir if Vortex uses a custom path.")
+
+    skse_loader = skyrim_dir / "skse64_loader.exe" if skyrim_dir else None
+    if skyrim_dir and not path_exists(skse_loader):
+        issues.append("SKSE64 loader is not installed beside SkyrimSE.exe.")
+
+    paths = plugin_state_paths(local_appdata)
+    if not paths["plugins_txt"]:
+        issues.append("plugins.txt was not found. Launch Skyrim once, then let Vortex deploy plugins.")
+
+    return {
+        "platform": sys.platform,
+        "steam_root": str(steam_root) if steam_root else None,
+        "steam_libraries": [str(p) for p in steam_libraries(steam_root)],
+        "vortex_appdata": str(vortex_appdata) if vortex_appdata else None,
+        "staging_dir": str(staging_dir) if staging_dir else None,
+        "staging_candidates": [str(p) for p in staging_candidates(vortex_appdata, args.get("staging_dir"))],
+        "skyrim_dir": str(skyrim_dir) if skyrim_dir else None,
+        "skyrim_data": str(skyrim_dir / "Data") if skyrim_dir else None,
+        "skse_loader": str(skse_loader) if skse_loader else None,
+        "skse_installed": bool(path_exists(skse_loader)),
+        "local_appdata": str(local_appdata) if local_appdata else None,
+        "my_games_dir": str(my_games) if my_games else None,
+        "plugin_state": paths,
+        "issues": issues,
+    }
+
+
+def safe_walk(root: Path, max_files: int = MAX_DEFAULT_FILES) -> Iterable[Path]:
+    count = 0
+    for base, dirs, files in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in {".git", "__pycache__"}]
+        for file_name in files:
+            count += 1
+            if count > max_files:
+                return
+            yield Path(base) / file_name
+
+
+def parse_metadata_file(path: Path) -> Dict[str, Any]:
+    result: Dict[str, Any] = {}
+    try:
+        if path.suffix.lower() == ".json":
+            data = json.loads(read_text(path))
+            if isinstance(data, dict):
+                for key in ("name", "modName", "modId", "fileId", "version", "author", "category"):
+                    if key in data:
+                        result[key] = data[key]
+        elif path.suffix.lower() in {".ini", ".txt"}:
+            for line in read_text(path, 80_000).splitlines():
+                if "=" not in line or line.strip().startswith(("#", ";")):
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if key.lower() in {
+                    "name",
+                    "modname",
+                    "modid",
+                    "fileid",
+                    "version",
+                    "author",
+                    "category",
+                    "nexusmodid",
+                    "nexusfileid",
+                }:
+                    result[key] = value
+    except Exception as exc:
+        result["_metadata_error"] = str(exc)
+    return result
+
+
+def find_readmes(mod_dir: Path, max_count: int = 8) -> List[str]:
+    names = []
+    patterns = ("readme", "description", "changelog", "manual", "instructions", "install")
+    for file_path in safe_walk(mod_dir, 4000):
+        name = file_path.name.lower()
+        if file_path.suffix.lower() in {".txt", ".md", ".rtf"} and any(p in name for p in patterns):
+            names.append(rel_to(file_path, mod_dir))
+            if len(names) >= max_count:
+                break
+    return names
+
+
+def classify_file(rel: str) -> str:
+    lower = rel.lower().replace("\\", "/")
+    suffix = Path(lower).suffix
+    if suffix in {".esp", ".esm", ".esl"}:
+        return "plugin"
+    if suffix == ".bsa":
+        return "archive"
+    if lower.startswith("skse/plugins/") and suffix == ".dll":
+        return "skse_plugin"
+    if lower.startswith("scripts/") and suffix in {".pex", ".psc"}:
+        return "script"
+    if lower.startswith("meshes/") or suffix == ".nif":
+        return "mesh"
+    if lower.startswith("textures/") or suffix in {".dds", ".tga", ".png"}:
+        return "texture"
+    if lower.startswith("interface/") or suffix in {".swf", ".gfx"}:
+        return "interface"
+    if lower.startswith("fomod/"):
+        return "fomod"
+    if lower.startswith("nemesis") or "generatefnis" in lower or lower.startswith("tools/generatefnis"):
+        return "animation_tool"
+    if suffix in {".ini", ".toml", ".json", ".xml"}:
+        return "config"
+    return "other"
+
+
+def parse_fomod(mod_dir: Path) -> Dict[str, Any]:
+    import xml.etree.ElementTree as ET
+
+    result: Dict[str, Any] = {}
+    module_config = mod_dir / "fomod" / "ModuleConfig.xml"
+    info_xml = mod_dir / "fomod" / "Info.xml"
+    for xml_path in [module_config, info_xml]:
+        if not xml_path.exists():
+            continue
+        try:
+            root = ET.fromstring(read_text(xml_path, 300_000))
+            if xml_path.name.lower() == "info.xml":
+                for child in root:
+                    tag = child.tag.split("}")[-1]
+                    if child.text and tag.lower() in {"name", "author", "version", "website", "description"}:
+                        result[tag.lower()] = child.text.strip()
+            else:
+                result["moduleName"] = root.attrib.get("moduleName") or root.findtext(".//moduleName")
+                install_steps = root.findall(".//installStep")
+                result["installStepCount"] = len(install_steps)
+                result["hasConditionalInstall"] = root.find(".//conditionalFileInstalls") is not None
+        except Exception as exc:
+            result.setdefault("errors", []).append(f"{xml_path}: {exc}")
+    return result
+
+
+def plugin_masters(path: Path) -> Dict[str, Any]:
+    result: Dict[str, Any] = {"path": str(path), "masters": [], "description": None, "author": None}
+    try:
+        data = path.read_bytes()
+        if len(data) < 24 or data[:4] != b"TES4":
+            result["error"] = "Not a TES4 plugin header."
+            return result
+        size = struct.unpack_from("<I", data, 4)[0]
+        payload = data[24 : 24 + size]
+        pos = 0
+        extended_size: Optional[int] = None
+        while pos + 6 <= len(payload):
+            stype = payload[pos : pos + 4].decode("ascii", errors="replace")
+            ssize = struct.unpack_from("<H", payload, pos + 4)[0]
+            pos += 6
+            if stype == "XXXX" and pos + ssize <= len(payload):
+                if ssize >= 4:
+                    extended_size = struct.unpack_from("<I", payload, pos)[0]
+                pos += ssize
+                continue
+            if extended_size is not None:
+                ssize = extended_size
+                extended_size = None
+            body = payload[pos : pos + ssize]
+            pos += ssize
+            text = body.split(b"\0", 1)[0].decode("utf-8", errors="replace").strip()
+            if stype == "MAST" and text:
+                result["masters"].append(text)
+            elif stype == "CNAM" and text:
+                result["author"] = text
+            elif stype == "SNAM" and text:
+                result["description"] = text
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
+
+
+def mod_summary(mod_dir: Path, include_files: bool = False, max_files: int = 5000) -> Dict[str, Any]:
+    counters: Dict[str, int] = {}
+    plugin_files: List[str] = []
+    archives: List[str] = []
+    skse_plugins: List[str] = []
+    files: List[str] = []
+    total_size = 0
+
+    for file_path in safe_walk(mod_dir, max_files):
+        rel = rel_to(file_path, mod_dir)
+        kind = classify_file(rel)
+        counters[kind] = counters.get(kind, 0) + 1
+        try:
+            total_size += file_path.stat().st_size
+        except OSError:
+            pass
+        if kind == "plugin":
+            plugin_files.append(rel)
+        elif kind == "archive":
+            archives.append(rel)
+        elif kind == "skse_plugin":
+            skse_plugins.append(rel)
+        if include_files:
+            files.append(rel)
+
+    metadata: Dict[str, Any] = {}
+    for meta_name in ("meta.ini", "info.json", "mod.json"):
+        meta_path = mod_dir / meta_name
+        if meta_path.exists():
+            metadata.update(parse_metadata_file(meta_path))
+
+    fomod = parse_fomod(mod_dir)
+    if fomod:
+        metadata["fomod"] = fomod
+
+    return {
+        "name": mod_dir.name,
+        "path": str(mod_dir),
+        "metadata": metadata,
+        "fileCount": sum(counters.values()),
+        "totalBytes": total_size,
+        "kinds": counters,
+        "plugins": plugin_files,
+        "archives": archives,
+        "sksePlugins": skse_plugins,
+        "readmes": find_readmes(mod_dir),
+        **({"files": files} if include_files else {}),
+    }
+
+
+def get_context_paths(args: Dict[str, Any]) -> Tuple[Optional[Path], Optional[Path], Optional[Path], Optional[Path]]:
+    vortex_appdata = default_vortex_appdata(args.get("vortex_appdata"))
+    skyrim_dir = find_skyrim_dir(args.get("skyrim_dir"))
+    staging_dir = choose_staging_dir(vortex_appdata, args.get("staging_dir"))
+    my_games = default_my_games_dir(args.get("my_games_dir"))
+    return vortex_appdata, skyrim_dir, staging_dir, my_games
+
+
+def inventory_mods(args: Dict[str, Any]) -> Dict[str, Any]:
+    vortex_appdata, _skyrim_dir, staging_dir, _my_games = get_context_paths(args)
+    if not staging_dir or not staging_dir.exists():
+        raise ToolError("Vortex staging folder was not found. Pass staging_dir explicitly.")
+    include_files = bool(args.get("include_files", False))
+    max_mods = int(args.get("max_mods", 300))
+    max_files_per_mod = int(args.get("max_files_per_mod", 5000))
+    mods = []
+    for mod_dir in sorted([p for p in staging_dir.iterdir() if p.is_dir()], key=lambda p: p.name.lower())[:max_mods]:
+        mods.append(mod_summary(mod_dir, include_files=include_files, max_files=max_files_per_mod))
+    return {
+        "vortex_appdata": str(vortex_appdata) if vortex_appdata else None,
+        "staging_dir": str(staging_dir),
+        "modCount": len(mods),
+        "mods": mods,
+    }
+
+
+def sha256_file(path: Path, max_mb: int = 256) -> Optional[str]:
+    try:
+        if path.stat().st_size > max_mb * 1024 * 1024:
+            return None
+        h = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+def analyze_conflicts(args: Dict[str, Any]) -> Dict[str, Any]:
+    _vortex_appdata, skyrim_dir, staging_dir, _my_games = get_context_paths(args)
+    if not staging_dir or not staging_dir.exists():
+        raise ToolError("Vortex staging folder was not found. Pass staging_dir explicitly.")
+    game_data = (skyrim_dir / "Data") if skyrim_dir else None
+    hash_files = bool(args.get("hash_files", False))
+    max_files = int(args.get("max_files", MAX_DEFAULT_FILES))
+    max_conflicts = int(args.get("max_conflicts", 300))
+    providers: Dict[str, List[Dict[str, Any]]] = {}
+
+    mod_dirs = [p for p in staging_dir.iterdir() if p.is_dir()]
+    scanned_files = 0
+    for mod_dir in mod_dirs:
+        for file_path in safe_walk(mod_dir, max_files):
+            scanned_files += 1
+            rel = rel_to(file_path, mod_dir).lower()
+            try:
+                size = file_path.stat().st_size
+            except OSError:
+                size = None
+            providers.setdefault(rel, []).append(
+                {"mod": mod_dir.name, "path": str(file_path), "size": size}
+            )
+
+    conflicts = []
+    for rel, entries in providers.items():
+        if len(entries) <= 1:
+            continue
+        sizes = sorted(set(e["size"] for e in entries))
+        hashes = None
+        if hash_files:
+            hashes = sorted(set(sha256_file(Path(e["path"])) for e in entries))
+        conflicts.append(
+            {
+                "relativePath": rel,
+                "kind": classify_file(rel),
+                "providerCount": len(entries),
+                "sameSize": len(sizes) == 1,
+                "sameHash": (len([h for h in hashes or [] if h]) == 1) if hash_files else None,
+                "providers": entries,
+            }
+        )
+    conflicts.sort(key=lambda c: (c["kind"], -c["providerCount"], c["relativePath"]))
+
+    unmanaged_conflicts = []
+    if game_data and game_data.exists():
+        for rel, entries in list(providers.items())[:max_files]:
+            data_file = game_data / rel
+            if data_file.exists():
+                unmanaged_conflicts.append(
+                    {
+                        "relativePath": rel,
+                        "dataPath": str(data_file),
+                        "modProviders": [e["mod"] for e in entries],
+                    }
+                )
+                if len(unmanaged_conflicts) >= max_conflicts:
+                    break
+
+    return {
+        "staging_dir": str(staging_dir),
+        "skyrim_data": str(game_data) if game_data else None,
+        "scannedModDirs": len(mod_dirs),
+        "scannedFilesApprox": scanned_files,
+        "conflictCount": len(conflicts),
+        "conflicts": conflicts[:max_conflicts],
+        "unmanagedDataOverlapCount": len(unmanaged_conflicts),
+        "unmanagedDataOverlaps": unmanaged_conflicts,
+        "notes": [
+            "This reports file-level overlaps. Vortex conflict rules decide the actual winner.",
+            "Same-hash conflicts are usually harmless duplication; different-hash conflicts need an intentional winner.",
+        ],
+    }
+
+
+def redundant_mod_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    _vortex_appdata, _skyrim_dir, staging_dir, _my_games = get_context_paths(args)
+    if not staging_dir or not staging_dir.exists():
+        raise ToolError("Vortex staging folder was not found. Pass staging_dir explicitly.")
+    hash_files = bool(args.get("hash_files", False))
+    max_mods = int(args.get("max_mods", 200))
+    mods = [p for p in sorted(staging_dir.iterdir(), key=lambda p: p.name.lower()) if p.is_dir()][:max_mods]
+    summaries = [mod_summary(p, include_files=False, max_files=8000) for p in mods]
+
+    duplicate_plugins: Dict[str, List[str]] = {}
+    duplicate_nexus: Dict[str, List[str]] = {}
+    for summary in summaries:
+        for plugin in summary["plugins"]:
+            duplicate_plugins.setdefault(Path(plugin).name.lower(), []).append(summary["name"])
+        meta = summary.get("metadata") or {}
+        mod_id = str(meta.get("modId") or meta.get("nexusModId") or "").strip()
+        if mod_id:
+            duplicate_nexus.setdefault(mod_id, []).append(summary["name"])
+
+    exact_or_subset: List[Dict[str, Any]] = []
+    fingerprints: Dict[str, Dict[str, Any]] = {}
+    for mod_dir in mods:
+        fp: Dict[str, Any] = {}
+        for file_path in safe_walk(mod_dir, 8000):
+            rel = rel_to(file_path, mod_dir).lower()
+            try:
+                stat = file_path.stat()
+            except OSError:
+                continue
+            fp[rel] = sha256_file(file_path) if hash_files else stat.st_size
+        fingerprints[mod_dir.name] = fp
+
+    names = list(fingerprints)
+    for left_name in names:
+        left = fingerprints[left_name]
+        if not left:
+            continue
+        for right_name in names:
+            if left_name == right_name:
+                continue
+            right = fingerprints[right_name]
+            if len(left) > len(right):
+                continue
+            if all(k in right and right[k] == v for k, v in left.items()):
+                exact_or_subset.append(
+                    {
+                        "possiblyRedundant": left_name,
+                        "coveredBy": right_name,
+                        "fileCount": len(left),
+                        "basis": "hash subset" if hash_files else "same-size path subset",
+                    }
+                )
+                break
+
+    return {
+        "staging_dir": str(staging_dir),
+        "duplicatePlugins": {k: v for k, v in duplicate_plugins.items() if len(v) > 1},
+        "duplicateNexusIds": {k: v for k, v in duplicate_nexus.items() if len(v) > 1},
+        "coveredMods": exact_or_subset,
+        "notes": [
+            "Covered mods are candidates, not automatic delete decisions.",
+            "Use hash_files=true for stronger evidence; it can be slower.",
+        ],
+    }
+
+
+def parse_plugin_list(path: Optional[Path]) -> Dict[str, Any]:
+    if not path or not path.exists():
+        return {"path": str(path) if path else None, "exists": False, "entries": []}
+    entries = []
+    for raw in read_text(path, 1_000_000).splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        enabled = line.startswith("*")
+        name = line[1:] if enabled else line
+        entries.append({"name": name, "enabled": enabled})
+    return {"path": str(path), "exists": True, "entries": entries}
+
+
+def plugin_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    _vortex_appdata, skyrim_dir, staging_dir, _my_games = get_context_paths(args)
+    if not skyrim_dir or not skyrim_dir.exists():
+        raise ToolError("Skyrim folder was not found. Pass skyrim_dir explicitly.")
+    data_dir = skyrim_dir / "Data"
+    local = expand_path(args.get("local_appdata")) or default_local_appdata()
+    state = plugin_state_paths(local)
+    plugins_txt = parse_plugin_list(Path(state["plugins_txt"]) if state["plugins_txt"] else None)
+    loadorder_txt = parse_plugin_list(Path(state["loadorder_txt"]) if state["loadorder_txt"] else None)
+
+    available: Dict[str, str] = {}
+    plugin_details: Dict[str, Any] = {}
+    for root in [data_dir, staging_dir]:
+        if not root or not root.exists():
+            continue
+        for file_path in safe_walk(root, MAX_DEFAULT_FILES):
+            if file_path.suffix.lower() in {".esp", ".esm", ".esl"}:
+                available[file_path.name.lower()] = str(file_path)
+                plugin_details[file_path.name] = plugin_masters(file_path)
+
+    missing_enabled = []
+    for entry in plugins_txt["entries"]:
+        if entry["enabled"] and entry["name"].lower() not in available:
+            missing_enabled.append(entry["name"])
+
+    missing_masters = []
+    for plugin_name, detail in plugin_details.items():
+        for master in detail.get("masters", []):
+            if master.lower() not in available:
+                missing_masters.append({"plugin": plugin_name, "missingMaster": master})
+
+    return {
+        "skyrim_data": str(data_dir),
+        "staging_dir": str(staging_dir) if staging_dir else None,
+        "availablePluginCount": len(available),
+        "pluginsTxt": plugins_txt,
+        "loadorderTxt": loadorder_txt,
+        "missingEnabledPlugins": missing_enabled,
+        "missingMasters": missing_masters,
+        "pluginHeaders": plugin_details,
+    }
+
+
+def mod_evidence(args: Dict[str, Any]) -> Dict[str, Any]:
+    mod_dir = expand_path(args.get("mod_dir"))
+    if not mod_dir or not mod_dir.exists() or not mod_dir.is_dir():
+        raise ToolError("mod_dir must point to an existing mod folder.")
+    max_text_bytes = int(args.get("max_text_bytes", 80_000))
+    summary = mod_summary(mod_dir, include_files=True, max_files=int(args.get("max_files", 4000)))
+    texts = []
+    for rel in summary.get("readmes", [])[:5]:
+        path = mod_dir / rel
+        if path.exists():
+            texts.append({"relativePath": rel, "text": read_text(path, max_text_bytes)})
+    plugin_headers = {}
+    for rel in summary.get("plugins", []):
+        path = mod_dir / rel
+        if path.exists():
+            plugin_headers[rel] = plugin_masters(path)
+    return {
+        "summary": summary,
+        "pluginHeaders": plugin_headers,
+        "readmeTexts": texts,
+        "evidenceHints": infer_mod_purpose(summary),
+    }
+
+
+def infer_mod_purpose(summary: Dict[str, Any]) -> List[str]:
+    hints = []
+    kinds = summary.get("kinds", {})
+    if kinds.get("skse_plugin"):
+        hints.append("Contains SKSE DLL plugin files; check Address Library/runtime compatibility.")
+    if kinds.get("script"):
+        hints.append("Contains Papyrus scripts; conflicts can affect quests/gameplay.")
+    if kinds.get("mesh") or kinds.get("texture"):
+        hints.append("Contains visual assets such as meshes/textures.")
+    if kinds.get("interface"):
+        hints.append("Contains UI/interface files; check SkyUI/MCM compatibility.")
+    if summary.get("plugins"):
+        hints.append("Contains ESP/ESM/ESL plugins; load order and masters matter.")
+    if summary.get("archives"):
+        hints.append("Contains BSA archives; plugin/archive pairing may matter.")
+    return hints
+
+
+INI_RECOMMENDATIONS = [
+    {
+        "file": "SkyrimCustom.ini",
+        "section": "Archive",
+        "key": "bInvalidateOlderFiles",
+        "value": "1",
+        "reason": "Allows loose files deployed by mod managers to override archived game assets.",
+    },
+    {
+        "file": "SkyrimCustom.ini",
+        "section": "Archive",
+        "key": "sResourceDataDirsFinal",
+        "value": "",
+        "reason": "Common Skyrim SE loose-file setting used with bInvalidateOlderFiles.",
+    },
+    {
+        "file": "SkyrimPrefs.ini",
+        "section": "Launcher",
+        "key": "bEnableFileSelection",
+        "value": "1",
+        "reason": "Keeps plugin selection enabled for older launcher/plugin workflows.",
+    },
+]
+
+
+def read_ini_value(path: Path, section: str, key: str) -> Optional[str]:
+    if not path.exists():
+        return None
+    parser = configparser.ConfigParser(strict=False)
+    parser.optionxform = str  # type: ignore
+    try:
+        parser.read_string(read_text(path, 2_000_000))
+        for actual_section in parser.sections():
+            if actual_section.lower() == section.lower():
+                for actual_key, value in parser.items(actual_section):
+                    if actual_key.lower() == key.lower():
+                        return value
+    except Exception:
+        return None
+    return None
+
+
+def ini_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    my_games = default_my_games_dir(args.get("my_games_dir"))
+    if not my_games:
+        raise ToolError("My Games Skyrim folder was not found. Pass my_games_dir explicitly.")
+    recommendations = []
+    for rec in INI_RECOMMENDATIONS:
+        path = my_games / rec["file"]
+        current = read_ini_value(path, rec["section"], rec["key"])
+        ok = current == rec["value"]
+        recommendations.append({**rec, "path": str(path), "current": current, "ok": ok})
+    return {"my_games_dir": str(my_games), "recommendations": recommendations}
+
+
+def set_ini_value_text(text: str, section: str, key: str, value: str) -> str:
+    lines = text.splitlines()
+    section_re = re.compile(r"^\s*\[(.+?)\]\s*$")
+    key_re = re.compile(rf"^\s*{re.escape(key)}\s*=", re.IGNORECASE)
+    in_section = False
+    found_section = False
+    changed = False
+    output: List[str] = []
+
+    for line in lines:
+        match = section_re.match(line)
+        if match:
+            if in_section and not changed:
+                output.append(f"{key}={value}")
+                changed = True
+            in_section = match.group(1).lower() == section.lower()
+            found_section = found_section or in_section
+            output.append(line)
+            continue
+        if in_section and key_re.match(line):
+            output.append(f"{key}={value}")
+            changed = True
+        else:
+            output.append(line)
+
+    if not found_section:
+        if output and output[-1].strip():
+            output.append("")
+        output.extend([f"[{section}]", f"{key}={value}"])
+    elif in_section and not changed:
+        output.append(f"{key}={value}")
+    return "\n".join(output) + "\n"
+
+
+def apply_ini_fixes(args: Dict[str, Any]) -> Dict[str, Any]:
+    dry_run = bool(args.get("dry_run", True))
+    make_backup = bool(args.get("make_backup", True))
+    my_games = default_my_games_dir(args.get("my_games_dir"))
+    if not my_games:
+        raise ToolError("My Games Skyrim folder was not found. Pass my_games_dir explicitly.")
+    changes = []
+    for rec in INI_RECOMMENDATIONS:
+        path = my_games / rec["file"]
+        before = read_text(path, 2_000_000) if path.exists() else ""
+        after = set_ini_value_text(before, rec["section"], rec["key"], rec["value"])
+        current = read_ini_value(path, rec["section"], rec["key"])
+        needs_change = current != rec["value"]
+        backup_path = None
+        if needs_change and not dry_run:
+            if make_backup and path.exists():
+                backup_path = path.with_suffix(path.suffix + f".bak-{now_stamp()}")
+                shutil.copy2(path, backup_path)
+            write_text(path, after)
+        changes.append(
+            {
+                **rec,
+                "path": str(path),
+                "current": current,
+                "changed": bool(needs_change and not dry_run),
+                "wouldChange": bool(needs_change),
+                "backup": str(backup_path) if backup_path else None,
+            }
+        )
+    return {"dryRun": dry_run, "my_games_dir": str(my_games), "changes": changes}
+
+
+def allowed_roots(args: Dict[str, Any]) -> List[Path]:
+    vortex_appdata, skyrim_dir, staging_dir, my_games = get_context_paths(args)
+    roots = [p for p in [vortex_appdata, skyrim_dir, staging_dir, my_games, default_local_appdata()] if p]
+    extra = args.get("allowed_roots") or []
+    for value in extra:
+        path = expand_path(value)
+        if path:
+            roots.append(path)
+    return roots
+
+
+def read_text_file(args: Dict[str, Any]) -> Dict[str, Any]:
+    path = expand_path(args.get("path"))
+    if not path or not path.exists() or not path.is_file():
+        raise ToolError("path must point to an existing file.")
+    allow_any = bool(args.get("allow_any_path", False))
+    roots = allowed_roots(args)
+    if not allow_any and not any(is_under(path, root) for root in roots):
+        raise ToolError("Refusing to read outside detected Vortex/Skyrim roots unless allow_any_path=true.")
+    max_bytes = int(args.get("max_bytes", MAX_DEFAULT_TEXT_BYTES))
+    return {
+        "path": str(path),
+        "bytesReadMax": max_bytes,
+        "text": read_text(path, max_bytes),
+        "truncated": path.stat().st_size > max_bytes,
+    }
+
+
+def suggest_conflict_fixes(args: Dict[str, Any]) -> Dict[str, Any]:
+    conflicts = analyze_conflicts({**args, "hash_files": args.get("hash_files", False)})
+    plugins = plugin_report(args) if find_skyrim_dir(args.get("skyrim_dir")) else {}
+    actions = []
+    for missing in plugins.get("missingMasters", []):
+        actions.append(
+            {
+                "priority": "high",
+                "type": "missing_master",
+                "message": f"{missing['plugin']} requires missing master {missing['missingMaster']}. Install/enable the required mod or disable the dependent plugin.",
+            }
+        )
+    for item in conflicts.get("conflicts", [])[:80]:
+        if item["sameHash"] is True:
+            actions.append(
+                {
+                    "priority": "low",
+                    "type": "duplicate_same_file",
+                    "relativePath": item["relativePath"],
+                    "message": "Multiple mods provide the exact same file. Usually safe, but redundant.",
+                }
+            )
+        elif item["kind"] in {"script", "skse_plugin", "interface"}:
+            actions.append(
+                {
+                    "priority": "medium",
+                    "type": "sensitive_file_conflict",
+                    "relativePath": item["relativePath"],
+                    "providers": [p["mod"] for p in item["providers"]],
+                    "message": "Conflict touches scripts, SKSE DLLs, or UI files. Pick the intended winner in Vortex's Conflicts view.",
+                }
+            )
+    return {
+        "actions": actions,
+        "notes": [
+            "This MCP does not delete mods or rewrite Vortex conflict rules automatically.",
+            "Use these actions as an assistant-readable repair plan, then confirm changes in Vortex.",
+        ],
+    }
+
+
+def write_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    output_path = expand_path(args.get("output_path"))
+    if not output_path:
+        raise ToolError("output_path is required.")
+    report = {
+        "generatedAt": _dt.datetime.now().isoformat(),
+        "environment": detect_environment(args),
+        "ini": ini_report(args),
+    }
+    try:
+        report["plugins"] = plugin_report(args)
+    except Exception as exc:
+        report["pluginsError"] = str(exc)
+    try:
+        report["redundancy"] = redundant_mod_report(args)
+    except Exception as exc:
+        report["redundancyError"] = str(exc)
+    try:
+        report["conflicts"] = analyze_conflicts(args)
+    except Exception as exc:
+        report["conflictsError"] = str(exc)
+    if args.get("include_mod_inventory", False):
+        try:
+            report["inventory"] = inventory_mods(args)
+        except Exception as exc:
+            report["inventoryError"] = str(exc)
+    write_text(output_path, json.dumps(report, indent=2, ensure_ascii=False, default=str))
+    return {"output_path": str(output_path), "sections": list(report.keys())}
+
+
+TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str, Any]]]] = {
+    "detect_environment": (
+        "Find Steam, Skyrim SE, Vortex AppData, staging guesses, plugins.txt, SKSE, and basic problems.",
+        {
+            "type": "object",
+            "properties": {
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "my_games_dir": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        detect_environment,
+    ),
+    "inventory_mods": (
+        "Inventory staged Vortex Skyrim SE mods, file kinds, plugins, archives, SKSE DLLs, readmes, and metadata.",
+        {
+            "type": "object",
+            "properties": {
+                "vortex_appdata": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "include_files": {"type": "boolean", "default": False},
+                "max_mods": {"type": "integer", "default": 300},
+                "max_files_per_mod": {"type": "integer", "default": 5000},
+            },
+            "additionalProperties": False,
+        },
+        inventory_mods,
+    ),
+    "analyze_conflicts": (
+        "Find file-level conflicts across staged mods and unmanaged overlaps in Skyrim Data.",
+        {
+            "type": "object",
+            "properties": {
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "hash_files": {"type": "boolean", "default": False},
+                "max_files": {"type": "integer", "default": MAX_DEFAULT_FILES},
+                "max_conflicts": {"type": "integer", "default": 300},
+            },
+            "additionalProperties": False,
+        },
+        analyze_conflicts,
+    ),
+    "redundant_mod_report": (
+        "Find likely redundant mods by duplicate plugins, duplicate Nexus ids, and covered file sets.",
+        {
+            "type": "object",
+            "properties": {
+                "vortex_appdata": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "hash_files": {"type": "boolean", "default": False},
+                "max_mods": {"type": "integer", "default": 200},
+            },
+            "additionalProperties": False,
+        },
+        redundant_mod_report,
+    ),
+    "plugin_report": (
+        "Read plugins.txt/loadorder.txt, list available plugins, parse plugin masters, and report missing masters.",
+        {
+            "type": "object",
+            "properties": {
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "local_appdata": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        plugin_report,
+    ),
+    "mod_evidence": (
+        "Read one mod folder and return evidence of what it does: file kinds, plugins, masters, FOMOD, and readmes.",
+        {
+            "type": "object",
+            "properties": {
+                "mod_dir": {"type": "string"},
+                "max_files": {"type": "integer", "default": 4000},
+                "max_text_bytes": {"type": "integer", "default": 80000},
+            },
+            "required": ["mod_dir"],
+            "additionalProperties": False,
+        },
+        mod_evidence,
+    ),
+    "ini_report": (
+        "Inspect Skyrim SE INI files and report mod-manager-friendly settings.",
+        {
+            "type": "object",
+            "properties": {"my_games_dir": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        ini_report,
+    ),
+    "apply_ini_fixes": (
+        "Apply narrow Skyrim SE INI fixes. Dry-run by default and creates backups when writing.",
+        {
+            "type": "object",
+            "properties": {
+                "my_games_dir": {"type": "string"},
+                "dry_run": {"type": "boolean", "default": True},
+                "make_backup": {"type": "boolean", "default": True},
+            },
+            "additionalProperties": False,
+        },
+        apply_ini_fixes,
+    ),
+    "read_text_file": (
+        "Read a text file under detected Vortex/Skyrim roots. Use for mod readmes, logs, INIs, and XML configs.",
+        {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string"},
+                "max_bytes": {"type": "integer", "default": MAX_DEFAULT_TEXT_BYTES},
+                "allow_any_path": {"type": "boolean", "default": False},
+                "allowed_roots": {"type": "array", "items": {"type": "string"}},
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "my_games_dir": {"type": "string"},
+            },
+            "required": ["path"],
+            "additionalProperties": False,
+        },
+        read_text_file,
+    ),
+    "suggest_conflict_fixes": (
+        "Create an assistant-readable repair plan for missing masters, sensitive conflicts, and duplicate files.",
+        {
+            "type": "object",
+            "properties": {
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "hash_files": {"type": "boolean", "default": False},
+            },
+            "additionalProperties": False,
+        },
+        suggest_conflict_fixes,
+    ),
+    "write_report": (
+        "Write a JSON diagnosis report to disk for OpenClaw or another agent to analyze.",
+        {
+            "type": "object",
+            "properties": {
+                "output_path": {"type": "string"},
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "my_games_dir": {"type": "string"},
+                "include_mod_inventory": {"type": "boolean", "default": False},
+            },
+            "required": ["output_path"],
+            "additionalProperties": False,
+        },
+        write_report,
+    ),
+}
+
+
+def tool_list() -> List[Dict[str, Any]]:
+    tools = []
+    for name, (description, schema, _func) in TOOLS.items():
+        tools.append(
+            {
+                "name": name,
+                "title": name.replace("_", " ").title(),
+                "description": description,
+                "inputSchema": schema,
+            }
+        )
+    return tools
+
+
+def handle_call(name: str, arguments: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if name not in TOOLS:
+        raise ToolError(f"Unknown tool: {name}")
+    args = arguments or {}
+    _description, _schema, func = TOOLS[name]
+    try:
+        return json_content(func(args))
+    except ToolError as exc:
+        return json_content({"error": str(exc)}, is_error=True)
+    except Exception as exc:
+        return json_content(
+            {
+                "error": str(exc),
+                "traceback": traceback.format_exc(limit=6),
+            },
+            is_error=True,
+        )
+
+
+def send(obj: Dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def response(msg_id: Any, result: Any) -> Dict[str, Any]:
+    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
+
+
+def error_response(msg_id: Any, code: int, message: str, data: Any = None) -> Dict[str, Any]:
+    error: Dict[str, Any] = {"code": code, "message": message}
+    if data is not None:
+        error["data"] = data
+    return {"jsonrpc": "2.0", "id": msg_id, "error": error}
+
+
+def handle_message(message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    msg_id = message.get("id")
+    method = message.get("method")
+    params = message.get("params") or {}
+
+    # Notifications have no id and require no response.
+    if msg_id is None and method:
+        return None
+
+    try:
+        if method == "initialize":
+            requested = params.get("protocolVersion") or PROTOCOL_VERSION
+            return response(
+                msg_id,
+                {
+                    "protocolVersion": requested,
+                    "capabilities": {"tools": {"listChanged": False}},
+                    "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+                },
+            )
+        if method == "ping":
+            return response(msg_id, {})
+        if method == "tools/list":
+            return response(msg_id, {"tools": tool_list()})
+        if method == "tools/call":
+            return response(msg_id, handle_call(params.get("name"), params.get("arguments")))
+        return error_response(msg_id, -32601, f"Method not found: {method}")
+    except Exception as exc:
+        return error_response(msg_id, -32603, str(exc))
+
+
+def serve_stdio() -> None:
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+            messages = parsed if isinstance(parsed, list) else [parsed]
+            replies = []
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    replies.append(error_response(None, -32600, "Invalid JSON-RPC message."))
+                    continue
+                reply = handle_message(msg)
+                if reply is not None:
+                    replies.append(reply)
+            if isinstance(parsed, list):
+                if replies:
+                    send(replies)  # type: ignore[arg-type]
+            elif replies:
+                send(replies[0])
+        except json.JSONDecodeError as exc:
+            send(error_response(None, -32700, "Parse error.", str(exc)))
+
+
+def self_test() -> int:
+    env = detect_environment({})
+    print(json.dumps({"server": SERVER_NAME, "version": SERVER_VERSION, "environment": env}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        raise SystemExit(self_test())
+    serve_stdio()
