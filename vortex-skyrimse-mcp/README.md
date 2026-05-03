@@ -21,14 +21,19 @@ JSON-RPC over stdin/stdout.
 - Detect missing masters and enabled plugins that are missing on disk.
 - Inspect Skyrim INI settings and apply a narrow safe set of INI fixes with
   backups. INI writes are dry-run by default.
+- Read Vortex profiles through Vortex's own CLI, show the active-profile guess,
+  list enabled/disabled mods per profile, compare profiles, and clone a profile
+  for safer testing.
+- Enable or disable exact Vortex mod ids in a selected profile only when
+  `apply=true`. This is dry-run by default and never deletes mods.
 - Write a JSON report that another agent can analyze.
 
 ## What It Will Not Do Automatically
 
-It does not blindly delete mods, disable plugins, or rewrite broad Vortex profile
-state. Vortex conflict rules and load-order changes are high-risk because the
-wrong winner can break a save. This server gives OpenClaw evidence and repair
-plans; destructive actions should stay human-approved.
+It does not blindly delete mods, disable plugins, rewrite conflict rules, or sort
+load order. Vortex conflict rules and load-order changes are high-risk because
+the wrong winner can break a save. Profile write tools require exact mod ids and
+are dry-run unless `apply=true`.
 
 ## Install
 
@@ -82,6 +87,18 @@ Then:
 Use the vortex-skyrimse MCP to find missing masters, likely redundant mods, and sensitive file conflicts. Do not apply changes yet.
 ```
 
+For profiles:
+
+```text
+Use the vortex-skyrimse MCP to list my Skyrim SE Vortex profiles, identify the active one, and show enabled mods on that profile.
+```
+
+To make a safer test profile:
+
+```text
+Use vortex_clone_profile to clone my active Skyrim SE profile as "OpenClaw Safe Test". Keep it as a dry run first.
+```
+
 For INI fixes:
 
 ```text
@@ -105,6 +122,12 @@ Use apply_ini_fixes with dry_run=false and make_backup=true.
 - `ini_report`
 - `apply_ini_fixes`
 - `read_text_file`
+- `vortex_cli_get`
+- `vortex_profile_report`
+- `vortex_profile_mods`
+- `vortex_compare_profiles`
+- `vortex_clone_profile`
+- `vortex_set_profile_mods`
 - `suggest_conflict_fixes`
 - `write_report`
 
@@ -139,12 +162,37 @@ If detection misses your setup, pass `skyrim_dir`, `staging_dir`,
 
 - `detect_environment`, `inventory_mods`, `analyze_conflicts`,
   `redundant_mod_report`, `plugin_report`, `mod_evidence`, `ini_report`,
-  `read_text_file`, `suggest_conflict_fixes`, and `write_report` do not modify
-  Vortex or Skyrim.
+  `read_text_file`, `vortex_cli_get`, `vortex_profile_report`,
+  `vortex_profile_mods`, `vortex_compare_profiles`, `suggest_conflict_fixes`,
+  and `write_report` do not modify Vortex or Skyrim.
 - `apply_ini_fixes` can write INI files only when `dry_run=false`.
 - `apply_ini_fixes` creates backups by default.
+- `vortex_clone_profile` and `vortex_set_profile_mods` can write Vortex profile
+  state only when `apply=true`.
+- Close Vortex before profile writes. Reopen Vortex afterward, select the wanted
+  profile, then deploy mods before launching Skyrim.
+- Profile writes use Vortex.exe `--set` instead of editing Vortex's database
+  files directly.
 - `read_text_file` refuses to read outside detected Vortex/Skyrim roots unless
   `allow_any_path=true`.
+
+## Vortex Profile Notes
+
+Vortex profiles let different playthroughs have different enabled mod lists, and
+Vortex can clone profiles in its own UI. This MCP mirrors that safety idea for
+OpenClaw: first inspect, then clone, then apply exact profile changes only after
+you approve them.
+
+If OpenClaw wants to experiment, the safer flow is:
+
+1. Run `vortex_profile_report`.
+2. Run `vortex_clone_profile` with `apply=false`.
+3. Close Vortex.
+4. Run `vortex_clone_profile` with `apply=true`.
+5. Reopen Vortex, enable the new profile, deploy mods, and test Skyrim.
+
+For exact mod toggles, run `vortex_profile_mods` first and copy the exact `id`
+values into `vortex_set_profile_mods`. Do not guess mod ids.
 
 ## Manual Smoke Test
 
@@ -164,8 +212,9 @@ You should get a JSON-RPC response with `serverInfo.name` equal to
 ## Notes For Maintainers
 
 This server intentionally avoids a dependency on Vortex internals. Current Vortex
-state persistence has changed over time, and broad state writes are risky. When
-possible, prefer filesystem evidence and Vortex UI-confirmed changes.
+state persistence has changed over time, and broad state writes are risky. The
+profile tools use Vortex's public CLI path for `--get`/`--set` and keep writes
+small, explicit, and dry-run by default.
 
 Sources used for protocol behavior:
 
@@ -173,3 +222,5 @@ Sources used for protocol behavior:
   https://modelcontextprotocol.io/specification/2025-03-26/basic/transports
 - MCP tools are listed with `tools/list` and invoked with `tools/call`:
   https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+- Vortex profiles are documented as separate mod lists/settings/saves:
+  https://github.com/Nexus-Mods/Vortex/wiki/MODDINGWIKI-Users-General-Setting-up-Profiles

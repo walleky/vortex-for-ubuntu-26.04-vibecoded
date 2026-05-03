@@ -14,7 +14,7 @@ This repo also includes a separate Windows MCP server for OpenClaw or any stdio 
 vortex-skyrimse-mcp/
 ```
 
-It can diagnose a Windows Vortex + Skyrim SE setup, inventory mods, inspect plugin masters/readmes/FOMODs, report redundant mods and file conflicts, and dry-run/apply narrow Skyrim INI fixes with backups.
+It can diagnose a Windows Vortex + Skyrim SE setup, inventory mods, inspect plugin masters/readmes/FOMODs, report redundant mods and file conflicts, inspect/compare/clone Vortex profiles for safer testing, and dry-run/apply narrow Skyrim INI fixes with backups.
 
 ## Start Here
 

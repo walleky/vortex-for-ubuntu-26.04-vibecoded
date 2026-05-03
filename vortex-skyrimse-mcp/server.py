@@ -19,8 +19,10 @@ import os
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import traceback
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
@@ -31,7 +33,7 @@ except Exception:  # pragma: no cover - non-Windows test hosts
 
 
 SERVER_NAME = "vortex-skyrimse-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 PROTOCOL_VERSION = "2025-06-18"
 SKYRIM_APP_ID = "489830"
 GAME_ID = "skyrimse"
@@ -221,6 +223,217 @@ def default_local_appdata() -> Optional[Path]:
     return Path(value).resolve() if value else None
 
 
+def find_vortex_exe(override: Optional[str] = None) -> Optional[Path]:
+    override_path = expand_path(override)
+    if override_path and override_path.exists():
+        return override_path
+
+    candidates: List[Path] = []
+    local = default_local_appdata()
+    if local:
+        candidates.extend(
+            [
+                local / "Programs" / "Vortex" / "Vortex.exe",
+                local / "Vortex" / "Vortex.exe",
+            ]
+        )
+        programs = local / "Programs"
+        if programs.exists():
+            try:
+                candidates.extend(programs.glob("**/Vortex.exe"))
+            except OSError:
+                pass
+
+    for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
+        env_path = os.environ.get(env_name)
+        if env_path:
+            candidates.append(Path(env_path) / "Vortex" / "Vortex.exe")
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
+def state_path_segment(value: object) -> str:
+    return str(value).replace("\\", "\\\\").replace(".", "\\.")
+
+
+def state_path(*parts: object) -> str:
+    return ".".join(state_path_segment(part) for part in parts)
+
+
+def split_state_path(value: str) -> List[str]:
+    parts: List[str] = []
+    current: List[str] = []
+    escaped = False
+    for char in value:
+        if escaped:
+            current.append(char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == ".":
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    if escaped:
+        current.append("\\")
+    parts.append("".join(current))
+    return parts
+
+
+def set_nested(root: Dict[str, Any], parts: List[str], value: Any) -> None:
+    cursor: Dict[str, Any] = root
+    for part in parts[:-1]:
+        next_value = cursor.get(part)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            cursor[part] = next_value
+        cursor = next_value
+    if parts:
+        cursor[parts[-1]] = value
+
+
+def nested_get(root: Dict[str, Any], parts: List[str]) -> Any:
+    cursor: Any = root
+    for part in parts:
+        if not isinstance(cursor, dict) or part not in cursor:
+            return None
+        cursor = cursor[part]
+    return cursor
+
+
+def parse_state_value(raw: str) -> Any:
+    value = raw.strip()
+    if value in {"undefined", ""}:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def parse_vortex_get_output(stdout: str) -> Dict[str, Any]:
+    values: Dict[str, Any] = {}
+    unparsed_lines: List[str] = []
+    for raw_line in stdout.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if " = " in line:
+            key, raw_value = line.split(" = ", 1)
+        elif "=" in line:
+            key, raw_value = line.split("=", 1)
+        else:
+            unparsed_lines.append(raw_line)
+            continue
+        values[key.strip()] = parse_state_value(raw_value)
+    return {"values": values, "unparsedLines": unparsed_lines, "raw": stdout}
+
+
+def values_to_state(values: Dict[str, Any]) -> Dict[str, Any]:
+    state: Dict[str, Any] = {}
+    for key, value in values.items():
+        set_nested(state, split_state_path(key), value)
+    return state
+
+
+def run_vortex_cli(
+    cli_args: List[str],
+    vortex_exe_override: Optional[str] = None,
+    timeout_seconds: int = 60,
+) -> Dict[str, Any]:
+    vortex_exe = find_vortex_exe(vortex_exe_override)
+    if not vortex_exe:
+        raise ToolError(
+            "Vortex.exe was not found. Pass vortex_exe, or install Vortex in the normal per-user location."
+        )
+    try:
+        proc = subprocess.run(
+            [str(vortex_exe), *cli_args],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ToolError(
+            f"Vortex CLI timed out after {timeout_seconds}s. Close Vortex and try again; the state database may be busy."
+        ) from exc
+    except OSError as exc:
+        raise ToolError(f"Could not run Vortex CLI at {vortex_exe}: {exc}") from exc
+
+    result = {
+        "vortex_exe": str(vortex_exe),
+        "args": cli_args,
+        "returncode": proc.returncode,
+        "stdout": proc.stdout,
+        "stderr": proc.stderr,
+    }
+    if proc.returncode != 0:
+        stderr = proc.stderr.strip()
+        stdout = proc.stdout.strip()
+        detail = stderr or stdout or f"exit code {proc.returncode}"
+        raise ToolError(f"Vortex CLI failed: {detail}. Close Vortex and try again if the database is locked.")
+    return result
+
+
+def vortex_state_get(
+    paths: List[str],
+    vortex_exe_override: Optional[str] = None,
+    timeout_seconds: int = 60,
+) -> Dict[str, Any]:
+    if not paths:
+        raise ToolError("At least one Vortex state path is required.")
+    cli_args: List[str] = []
+    for path in paths:
+        cli_args.extend(["--get", path])
+    result = run_vortex_cli(cli_args, vortex_exe_override, timeout_seconds)
+    parsed = parse_vortex_get_output(result["stdout"])
+    return {**result, "parsed": parsed, "state": values_to_state(parsed["values"])}
+
+
+def vortex_state_set(
+    changes: List[Dict[str, Any]],
+    vortex_exe_override: Optional[str] = None,
+    timeout_seconds: int = 60,
+) -> Dict[str, Any]:
+    if not changes:
+        raise ToolError("No Vortex state changes were requested.")
+    cli_args: List[str] = []
+    for change in changes:
+        path = change.get("path")
+        if not isinstance(path, str) or not path:
+            raise ToolError("Every Vortex state change needs a non-empty path.")
+        cli_args.extend(["--set", f"{path}={json.dumps(change.get('value'), separators=(',', ':'))}"])
+    return run_vortex_cli(cli_args, vortex_exe_override, timeout_seconds)
+
+
+def now_ms() -> int:
+    return int(_dt.datetime.now().timestamp() * 1000)
+
+
+def epoch_to_iso(value: Any) -> Optional[str]:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if numeric <= 0:
+        return None
+    seconds = numeric / 1000 if numeric > 10_000_000_000 else numeric
+    try:
+        return _dt.datetime.fromtimestamp(seconds).isoformat()
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
 def default_documents() -> Optional[Path]:
     home = Path.home()
     candidates = [
@@ -287,6 +500,7 @@ def plugin_state_paths(local_appdata: Optional[Path] = None) -> Dict[str, Option
 
 def detect_environment(args: Dict[str, Any]) -> Dict[str, Any]:
     vortex_appdata = default_vortex_appdata(args.get("vortex_appdata"))
+    vortex_exe = find_vortex_exe(args.get("vortex_exe"))
     skyrim_dir = find_skyrim_dir(args.get("skyrim_dir"))
     staging_dir = choose_staging_dir(vortex_appdata, args.get("staging_dir"))
     local_appdata = default_local_appdata()
@@ -301,6 +515,8 @@ def detect_environment(args: Dict[str, Any]) -> Dict[str, Any]:
 
     if not path_exists(vortex_appdata):
         issues.append("Vortex AppData folder was not found. Start Vortex once, or pass vortex_appdata.")
+    if not path_exists(vortex_exe):
+        issues.append("Vortex.exe was not found. Profile-aware tools need Vortex's own CLI; pass vortex_exe if needed.")
     if not path_exists(staging_dir):
         issues.append("Vortex Skyrim SE staging folder was not found. Pass staging_dir if Vortex uses a custom path.")
 
@@ -316,6 +532,7 @@ def detect_environment(args: Dict[str, Any]) -> Dict[str, Any]:
         "platform": sys.platform,
         "steam_root": str(steam_root) if steam_root else None,
         "steam_libraries": [str(p) for p in steam_libraries(steam_root)],
+        "vortex_exe": str(vortex_exe) if vortex_exe else None,
         "vortex_appdata": str(vortex_appdata) if vortex_appdata else None,
         "staging_dir": str(staging_dir) if staging_dir else None,
         "staging_candidates": [str(p) for p in staging_candidates(vortex_appdata, args.get("staging_dir"))],
@@ -953,6 +1170,332 @@ def read_text_file(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def vortex_cli_get(args: Dict[str, Any]) -> Dict[str, Any]:
+    paths = args.get("paths") or ["persistent.profiles", "settings.profiles"]
+    if not isinstance(paths, list) or not all(isinstance(path, str) and path for path in paths):
+        raise ToolError("paths must be a non-empty array of Vortex state paths.")
+    timeout = int(args.get("timeout_seconds", 60))
+    result = vortex_state_get(paths, args.get("vortex_exe"), timeout)
+    parsed = result["parsed"]
+    return {
+        "vortex_exe": result["vortex_exe"],
+        "paths": paths,
+        "values": parsed["values"],
+        "unparsedLines": parsed["unparsedLines"],
+        "rawStdout": result["stdout"],
+        "rawStderr": result["stderr"],
+    }
+
+
+def profile_enabled(entry: Any) -> bool:
+    if isinstance(entry, dict):
+        return bool(entry.get("enabled", False))
+    return bool(entry)
+
+
+def profile_enabled_time(entry: Any) -> Any:
+    if isinstance(entry, dict):
+        return entry.get("enabledTime")
+    return None
+
+
+def active_profile_from_settings(state: Dict[str, Any], values: Dict[str, Any]) -> Optional[str]:
+    candidates = [
+        nested_get(state, ["settings", "profiles", "activeProfileId"]),
+        nested_get(state, ["settings", "profile", "activeProfileId"]),
+        nested_get(state, ["settings", "profiles", "activeProfile"]),
+    ]
+    for key, value in values.items():
+        if key.endswith("activeProfileId") or key.endswith("activeProfile"):
+            candidates.append(value)
+    for candidate in candidates:
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def profile_last_activated(profile: Dict[str, Any]) -> float:
+    try:
+        return float(profile.get("lastActivated", 0) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def summarize_profile(profile_id: str, profile: Dict[str, Any], active_id: Optional[str]) -> Dict[str, Any]:
+    mod_state = profile.get("modState") if isinstance(profile.get("modState"), dict) else {}
+    enabled_count = sum(1 for entry in mod_state.values() if profile_enabled(entry))
+    last_activated = profile.get("lastActivated")
+    features = profile.get("features") if isinstance(profile.get("features"), dict) else {}
+    return {
+        "id": profile_id,
+        "name": profile.get("name") or profile_id,
+        "gameId": profile.get("gameId"),
+        "active": profile_id == active_id,
+        "modStateCount": len(mod_state),
+        "enabledModCount": enabled_count,
+        "disabledModCount": max(0, len(mod_state) - enabled_count),
+        "lastActivated": last_activated,
+        "lastActivatedIso": epoch_to_iso(last_activated),
+        "pendingRemove": bool(profile.get("pendingRemove", False)),
+        "featureKeys": sorted(str(key) for key in features.keys()),
+    }
+
+
+def summarize_vortex_mod(mod_id: str, mods: Dict[str, Any]) -> Dict[str, Any]:
+    entry = mods.get(mod_id)
+    if not isinstance(entry, dict):
+        return {"id": mod_id, "name": mod_id}
+    attributes = entry.get("attributes") if isinstance(entry.get("attributes"), dict) else {}
+    installation = entry.get("installationPath") or entry.get("path")
+    name = (
+        attributes.get("customFileName")
+        or attributes.get("logicalFileName")
+        or attributes.get("name")
+        or entry.get("name")
+        or mod_id
+    )
+    nexus_id = attributes.get("modId") or attributes.get("nexusModId")
+    file_id = attributes.get("fileId") or attributes.get("nexusFileId")
+    return {
+        "id": mod_id,
+        "name": name,
+        "version": attributes.get("version") or entry.get("version"),
+        "source": attributes.get("source") or attributes.get("sourceName"),
+        "nexusModId": nexus_id,
+        "nexusFileId": file_id,
+        "installationPath": installation,
+    }
+
+
+def load_vortex_profile_state(args: Dict[str, Any], include_mods: bool = False) -> Dict[str, Any]:
+    game_id = str(args.get("game_id") or GAME_ID)
+    paths = ["persistent.profiles", "settings.profiles", "settings.profile"]
+    if include_mods:
+        paths.append(state_path("persistent", "mods", game_id))
+    result = vortex_state_get(paths, args.get("vortex_exe"), int(args.get("timeout_seconds", 60)))
+    parsed = result["parsed"]
+    state = result["state"]
+    profiles = nested_get(state, ["persistent", "profiles"])
+    if not isinstance(profiles, dict):
+        profiles = {}
+    mods = nested_get(state, ["persistent", "mods", game_id])
+    if not isinstance(mods, dict):
+        mods = {}
+
+    include_all = bool(args.get("include_all_games", False))
+    filtered_profiles = {
+        str(profile_id): profile
+        for profile_id, profile in profiles.items()
+        if isinstance(profile, dict) and (include_all or profile.get("gameId") == game_id)
+    }
+    active_from_settings = active_profile_from_settings(state, parsed["values"])
+    active_from_last = None
+    if filtered_profiles:
+        active_from_last = max(filtered_profiles.items(), key=lambda item: profile_last_activated(item[1]))[0]
+    active_profile_id = active_from_settings if active_from_settings in filtered_profiles else active_from_last
+
+    return {
+        "gameId": game_id,
+        "vortex_exe": result["vortex_exe"],
+        "profiles": filtered_profiles,
+        "allProfiles": profiles,
+        "mods": mods,
+        "activeProfileId": active_profile_id,
+        "activeFromSettings": active_from_settings,
+        "activeFromLastActivated": active_from_last,
+        "rawPaths": paths,
+    }
+
+
+def require_profile(snapshot: Dict[str, Any], profile_id: Optional[str]) -> Tuple[str, Dict[str, Any]]:
+    profiles = snapshot["profiles"]
+    selected = profile_id or snapshot.get("activeProfileId")
+    if not selected:
+        raise ToolError("No active Vortex profile could be detected. Pass profile_id explicitly.")
+    if selected not in profiles:
+        raise ToolError(f"Vortex profile '{selected}' was not found for game {snapshot['gameId']}.")
+    return selected, profiles[selected]
+
+
+def vortex_profile_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    snapshot = load_vortex_profile_state(args, include_mods=False)
+    summaries = [
+        summarize_profile(profile_id, profile, snapshot["activeProfileId"])
+        for profile_id, profile in sorted(
+            snapshot["profiles"].items(),
+            key=lambda item: (item[1].get("gameId", ""), item[1].get("name", item[0]).lower()),
+        )
+    ]
+    return {
+        "gameId": snapshot["gameId"],
+        "vortex_exe": snapshot["vortex_exe"],
+        "activeProfileId": snapshot["activeProfileId"],
+        "activeDetection": {
+            "fromSettings": snapshot["activeFromSettings"],
+            "fromLastActivated": snapshot["activeFromLastActivated"],
+        },
+        "profileCount": len(summaries),
+        "profiles": summaries,
+        "notes": [
+            "Profile writes use Vortex.exe --set and default to dry-run in write-capable tools.",
+            "Close Vortex before apply=true profile writes so Vortex does not overwrite or lock the state database.",
+            "After changing profile mod enabled states, use Vortex to deploy mods before launching Skyrim.",
+        ],
+    }
+
+
+def vortex_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
+    include_metadata = bool(args.get("include_mod_metadata", True))
+    snapshot = load_vortex_profile_state(args, include_mods=include_metadata)
+    profile_id, profile = require_profile(snapshot, args.get("profile_id"))
+    mod_state = profile.get("modState") if isinstance(profile.get("modState"), dict) else {}
+    include_disabled = bool(args.get("include_disabled", False))
+    max_mods = int(args.get("max_mods", 500))
+    rows = []
+    for mod_id, entry in mod_state.items():
+        enabled = profile_enabled(entry)
+        if not include_disabled and not enabled:
+            continue
+        row = {
+            "id": mod_id,
+            "enabled": enabled,
+            "enabledTime": profile_enabled_time(entry),
+            "enabledTimeIso": epoch_to_iso(profile_enabled_time(entry)),
+        }
+        if include_metadata:
+            row.update(summarize_vortex_mod(str(mod_id), snapshot["mods"]))
+        rows.append(row)
+    rows.sort(key=lambda item: (not item["enabled"], str(item.get("name") or item["id"]).lower()))
+    return {
+        "gameId": snapshot["gameId"],
+        "profile": summarize_profile(profile_id, profile, snapshot["activeProfileId"]),
+        "includeDisabled": include_disabled,
+        "includeModMetadata": include_metadata,
+        "returnedModCount": min(len(rows), max_mods),
+        "totalMatchingModCount": len(rows),
+        "mods": rows[:max_mods],
+    }
+
+
+def vortex_compare_profiles(args: Dict[str, Any]) -> Dict[str, Any]:
+    snapshot = load_vortex_profile_state(args, include_mods=False)
+    left_id = args.get("left_profile_id")
+    right_id = args.get("right_profile_id")
+    if not left_id or not right_id:
+        raise ToolError("left_profile_id and right_profile_id are required.")
+    left_id, left = require_profile(snapshot, left_id)
+    right_id, right = require_profile(snapshot, right_id)
+    left_state = left.get("modState") if isinstance(left.get("modState"), dict) else {}
+    right_state = right.get("modState") if isinstance(right.get("modState"), dict) else {}
+    left_enabled = {str(mod_id) for mod_id, entry in left_state.items() if profile_enabled(entry)}
+    right_enabled = {str(mod_id) for mod_id, entry in right_state.items() if profile_enabled(entry)}
+    all_ids = set(str(mod_id) for mod_id in left_state.keys()) | set(str(mod_id) for mod_id in right_state.keys())
+    different_state = [
+        {
+            "id": mod_id,
+            "leftEnabled": mod_id in left_enabled,
+            "rightEnabled": mod_id in right_enabled,
+        }
+        for mod_id in sorted(all_ids)
+        if (mod_id in left_enabled) != (mod_id in right_enabled)
+    ]
+    return {
+        "gameId": snapshot["gameId"],
+        "left": summarize_profile(left_id, left, snapshot["activeProfileId"]),
+        "right": summarize_profile(right_id, right, snapshot["activeProfileId"]),
+        "enabledOnlyInLeft": sorted(left_enabled - right_enabled),
+        "enabledOnlyInRight": sorted(right_enabled - left_enabled),
+        "differentState": different_state,
+        "differentStateCount": len(different_state),
+    }
+
+
+def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
+    snapshot = load_vortex_profile_state(args, include_mods=False)
+    source_id, source = require_profile(snapshot, args.get("source_profile_id"))
+    new_id = str(args.get("new_profile_id") or f"openclaw-{now_stamp()}-{uuid.uuid4().hex[:8]}")
+    if new_id in snapshot["allProfiles"]:
+        raise ToolError(f"A Vortex profile with id '{new_id}' already exists.")
+    new_name = str(args.get("new_name") or f"OpenClaw Safe Test {now_stamp()}")
+    make_active = bool(args.get("make_active", False))
+    apply_changes = bool(args.get("apply", False))
+    cloned = json.loads(json.dumps(source))
+    cloned["id"] = new_id
+    cloned["name"] = new_name
+    cloned["lastActivated"] = now_ms() if make_active else 0
+    cloned.pop("pendingRemove", None)
+    changes = [{"path": state_path("persistent", "profiles", new_id), "value": cloned}]
+    apply_result = None
+    if apply_changes:
+        apply_result = vortex_state_set(changes, args.get("vortex_exe"), int(args.get("timeout_seconds", 60)))
+    return {
+        "dryRun": not apply_changes,
+        "gameId": snapshot["gameId"],
+        "sourceProfile": summarize_profile(source_id, source, snapshot["activeProfileId"]),
+        "newProfile": summarize_profile(new_id, cloned, new_id if make_active else snapshot["activeProfileId"]),
+        "plannedChanges": changes,
+        "applied": bool(apply_result),
+        "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
+        "notes": [
+            "Use apply=true only with Vortex closed.",
+            "The clone copies enabled/disabled mod state so OpenClaw can experiment on a safer profile.",
+            "Deploy mods in Vortex after activating or changing a profile.",
+        ],
+    }
+
+
+def vortex_set_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
+    snapshot = load_vortex_profile_state(args, include_mods=True)
+    profile_id, profile = require_profile(snapshot, args.get("profile_id"))
+    enable_ids = sorted({str(mod_id) for mod_id in args.get("enable_mod_ids", [])})
+    disable_ids = sorted({str(mod_id) for mod_id in args.get("disable_mod_ids", [])})
+    overlap = sorted(set(enable_ids) & set(disable_ids))
+    if overlap:
+        raise ToolError(f"These mod ids were requested for both enable and disable: {', '.join(overlap)}")
+    if not enable_ids and not disable_ids:
+        raise ToolError("Pass at least one mod id in enable_mod_ids or disable_mod_ids.")
+
+    mod_state = profile.get("modState") if isinstance(profile.get("modState"), dict) else {}
+    known_ids = set(str(mod_id) for mod_id in mod_state.keys()) | set(str(mod_id) for mod_id in snapshot["mods"].keys())
+    requested_ids = set(enable_ids) | set(disable_ids)
+    unknown_ids = sorted(requested_ids - known_ids)
+    if unknown_ids and not bool(args.get("allow_unknown_mod_ids", False)):
+        raise ToolError(
+            "Unknown Vortex mod ids: "
+            + ", ".join(unknown_ids)
+            + ". Use vortex_profile_mods first, or set allow_unknown_mod_ids=true if you know the ids are valid."
+        )
+
+    timestamp = now_ms()
+    changes: List[Dict[str, Any]] = []
+    for mod_id in enable_ids:
+        changes.append({"path": state_path("persistent", "profiles", profile_id, "modState", mod_id, "enabled"), "value": True})
+        changes.append({"path": state_path("persistent", "profiles", profile_id, "modState", mod_id, "enabledTime"), "value": timestamp})
+    for mod_id in disable_ids:
+        changes.append({"path": state_path("persistent", "profiles", profile_id, "modState", mod_id, "enabled"), "value": False})
+
+    apply_changes = bool(args.get("apply", False))
+    apply_result = None
+    if apply_changes:
+        apply_result = vortex_state_set(changes, args.get("vortex_exe"), int(args.get("timeout_seconds", 60)))
+    return {
+        "dryRun": not apply_changes,
+        "gameId": snapshot["gameId"],
+        "profile": summarize_profile(profile_id, profile, snapshot["activeProfileId"]),
+        "enableModIds": enable_ids,
+        "disableModIds": disable_ids,
+        "unknownModIds": unknown_ids,
+        "plannedChanges": changes,
+        "applied": bool(apply_result),
+        "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
+        "notes": [
+            "This only changes Vortex profile state. It does not delete mods.",
+            "Close Vortex before apply=true so the app does not race the CLI write.",
+            "Open Vortex afterward, switch to the profile if needed, and deploy mods before launching Skyrim.",
+        ],
+    }
+
+
 def suggest_conflict_fixes(args: Dict[str, Any]) -> Dict[str, Any]:
     conflicts = analyze_conflicts({**args, "hash_files": args.get("hash_files", False)})
     plugins = plugin_report(args) if find_skyrim_dir(args.get("skyrim_dir")) else {}
@@ -1020,6 +1563,11 @@ def write_report(args: Dict[str, Any]) -> Dict[str, Any]:
             report["inventory"] = inventory_mods(args)
         except Exception as exc:
             report["inventoryError"] = str(exc)
+    if args.get("include_vortex_profiles", False):
+        try:
+            report["vortexProfiles"] = vortex_profile_report(args)
+        except Exception as exc:
+            report["vortexProfilesError"] = str(exc)
     write_text(output_path, json.dumps(report, indent=2, ensure_ascii=False, default=str))
     return {"output_path": str(output_path), "sections": list(report.keys())}
 
@@ -1031,6 +1579,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
             "type": "object",
             "properties": {
                 "vortex_appdata": {"type": "string"},
+                "vortex_exe": {"type": "string"},
                 "skyrim_dir": {"type": "string"},
                 "staging_dir": {"type": "string"},
                 "my_games_dir": {"type": "string"},
@@ -1152,6 +1701,102 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
         },
         read_text_file,
     ),
+    "vortex_cli_get": (
+        "Read raw Vortex state through Vortex.exe --get. Useful for diagnosing profile/state paths.",
+        {
+            "type": "object",
+            "properties": {
+                "paths": {"type": "array", "items": {"type": "string"}},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_cli_get,
+    ),
+    "vortex_profile_report": (
+        "List Vortex profiles for Skyrim SE, including active-profile guess and enabled mod counts.",
+        {
+            "type": "object",
+            "properties": {
+                "game_id": {"type": "string", "default": GAME_ID},
+                "include_all_games": {"type": "boolean", "default": False},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_profile_report,
+    ),
+    "vortex_profile_mods": (
+        "List enabled or disabled mods recorded in a Vortex profile, optionally with Vortex mod metadata.",
+        {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string"},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "include_disabled": {"type": "boolean", "default": False},
+                "include_mod_metadata": {"type": "boolean", "default": True},
+                "max_mods": {"type": "integer", "default": 500},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_profile_mods,
+    ),
+    "vortex_compare_profiles": (
+        "Compare two Vortex profiles and show which mods are enabled only in one profile.",
+        {
+            "type": "object",
+            "properties": {
+                "left_profile_id": {"type": "string"},
+                "right_profile_id": {"type": "string"},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "required": ["left_profile_id", "right_profile_id"],
+            "additionalProperties": False,
+        },
+        vortex_compare_profiles,
+    ),
+    "vortex_clone_profile": (
+        "Clone a Vortex profile for safer experimentation. Dry-run by default; use apply=true with Vortex closed.",
+        {
+            "type": "object",
+            "properties": {
+                "source_profile_id": {"type": "string"},
+                "new_profile_id": {"type": "string"},
+                "new_name": {"type": "string"},
+                "make_active": {"type": "boolean", "default": False},
+                "apply": {"type": "boolean", "default": False},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_clone_profile,
+    ),
+    "vortex_set_profile_mods": (
+        "Enable or disable exact Vortex mod ids in one profile. Dry-run by default and never deletes mods.",
+        {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string"},
+                "enable_mod_ids": {"type": "array", "items": {"type": "string"}},
+                "disable_mod_ids": {"type": "array", "items": {"type": "string"}},
+                "allow_unknown_mod_ids": {"type": "boolean", "default": False},
+                "apply": {"type": "boolean", "default": False},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "vortex_exe": {"type": "string"},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_set_profile_mods,
+    ),
     "suggest_conflict_fixes": (
         "Create an assistant-readable repair plan for missing masters, sensitive conflicts, and duplicate files.",
         {
@@ -1173,10 +1818,13 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
             "properties": {
                 "output_path": {"type": "string"},
                 "vortex_appdata": {"type": "string"},
+                "vortex_exe": {"type": "string"},
+                "game_id": {"type": "string", "default": GAME_ID},
                 "skyrim_dir": {"type": "string"},
                 "staging_dir": {"type": "string"},
                 "my_games_dir": {"type": "string"},
                 "include_mod_inventory": {"type": "boolean", "default": False},
+                "include_vortex_profiles": {"type": "boolean", "default": False},
             },
             "required": ["output_path"],
             "additionalProperties": False,
