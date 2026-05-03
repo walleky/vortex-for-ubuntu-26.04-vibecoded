@@ -194,6 +194,12 @@ skse64_loader.exe
 
 through the Skyrim SE Proton prefix.
 
+Each preflight/SKSE launch also writes a log under `~/.local/share/proton-vortex/logs`. Read the newest one with:
+
+```bash
+proton-vortex-skyrim-se last-log
+```
+
 Vortex's own Dashboard/Play button uses SKSE only after Vortex has detected SKSE and made it the primary tool. The wrapper does not force-edit Vortex's private game/tool state because that is where profiles, collections, and mod state live. The guaranteed launch paths are:
 
 ```text

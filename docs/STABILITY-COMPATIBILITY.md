@@ -114,6 +114,7 @@ PROTON_PREFER_GE=1 bash install.sh
 - If Vortex says the destination folder has to be empty, use `proton-vortex-skyrim-se empty-staging` and the fresh `S:\...` path it prints.
 - The Vortex launcher uses `StartupWMClass=vortex.exe` plus desktop actions for SKSE and staging repair, but some docks cache old launcher metadata until logout/login or re-pinning.
 - The wrapper does not force Vortex's private Dashboard/Play tool state. Use the SKSE launcher, `proton-vortex-skyrim-se preflight-launch`, the Vortex dock action, or the generated SKSE batch helper for the safest SKSE launch. Use `launch-skse` only when intentionally skipping preflight.
+- SKSE/preflight launches write logs under `~/.local/share/proton-vortex/logs`; use `proton-vortex-skyrim-se last-log` when a dock launch fails silently.
 - If Vortex says SKSE could not find `SkyrimSE.exe`, Vortex is launching SKSE from the wrong working folder. Use `proton-vortex-skyrim-se fix-skse-launcher` and point Vortex at the generated game-folder batch file.
 - Vortex's **No Vortex uninstall key** warning is about app install metadata. Use `proton-vortex repair-vortex`; do not delete Vortex AppData.
 - `proton-vortex-skyrim-se hardlink-test` writes and removes one tiny test file to confirm hardlinks can be created.

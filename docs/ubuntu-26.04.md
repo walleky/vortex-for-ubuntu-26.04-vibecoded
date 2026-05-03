@@ -235,6 +235,12 @@ or the **Skyrim SE SKSE (Proton)** app icon.
 
 Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Proton settings, and unmodded launching.
 
+If an app-icon launch fails or closes too fast to read, run:
+
+```bash
+proton-vortex-skyrim-se last-log
+```
+
 Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper now uses Vortex's own CLI state setter to repair the Skyrim SE game path, SKSE working directory, and primary tool. Rerunning `bash install.sh` adds Linux dock action **Preflight then Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-skse-launcher` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.cmd` plus a game-folder helper.
 
 If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run:
@@ -276,6 +282,7 @@ The installer adds:
 ```bash
 proton-vortex-skyrim-se install-skse
 proton-vortex-skyrim-se preflight-launch
+proton-vortex-skyrim-se last-log
 proton-vortex-skyrim-se diagnose
 ```
 

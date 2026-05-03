@@ -235,7 +235,13 @@ Vortex's own dashboard/play button only uses SKSE if Vortex has detected SKSE an
 proton-vortex-skyrim-se preflight-launch
 ```
 
-If your dock supports right-click actions, the Vortex app icon also gets **Launch Skyrim SE SKSE** after rerunning `bash install.sh`.
+If your dock supports right-click actions, the Vortex app icon also gets **Preflight then Launch Skyrim SE SKSE** after rerunning `bash install.sh`.
+
+If an app-icon launch fails and closes too fast to read:
+
+```bash
+proton-vortex-skyrim-se last-log
+```
 
 To check that SKSE really loaded, open the Skyrim console with `~` and run:
 

@@ -12,6 +12,7 @@ APP_HOME="$DATA_HOME/$APP_ID"
 APP_CACHE="$CACHE_HOME/$APP_ID"
 CONFIG_FILE="$APP_HOME/config.env"
 SKSE_CACHE="$APP_CACHE/skse"
+LOG_DIR="$APP_HOME/logs"
 
 say() {
   printf '%s\n' "$*"
@@ -28,6 +29,55 @@ die() {
 
 have() {
   command -v "$1" >/dev/null 2>&1
+}
+
+prune_skyrim_logs() {
+  local keep="${PROTON_VORTEX_SKYRIM_LOG_KEEP:-20}"
+  local old_log
+
+  [[ -d "$LOG_DIR" ]] || return 0
+  while IFS= read -r old_log; do
+    [[ -n "$old_log" ]] || continue
+    rm -f -- "$old_log"
+  done < <(find "$LOG_DIR" -maxdepth 1 -type f -name 'skyrim-se-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk -v keep="$keep" 'NR > keep {$1=""; sub(/^ /, ""); print}')
+}
+
+run_with_skyrim_log() {
+  local log_file
+  local status
+
+  mkdir -p "$LOG_DIR"
+  prune_skyrim_logs
+  log_file="$(mktemp "$LOG_DIR/skyrim-se-$(date +%Y%m%d-%H%M%S).XXXXXX.log")" || die "Could not create a Skyrim SE log file in $LOG_DIR"
+  say_err "Skyrim SE launch log: $log_file"
+
+  set +e
+  {
+    say "Skyrim SE launch log: $log_file"
+    "$@"
+  } 2>&1 | tee "$log_file"
+  status=${PIPESTATUS[0]}
+  set -e
+
+  if ((status != 0)); then
+    say_err "Skyrim SE launch failed with code $status. See log: $log_file"
+    if have notify-send; then
+      notify-send "Skyrim SE launch failed" "See log: $log_file" >/dev/null 2>&1 || true
+    fi
+  fi
+
+  prune_skyrim_logs
+  return "$status"
+}
+
+show_last_log() {
+  local log_file
+
+  [[ -d "$LOG_DIR" ]] || die "No Skyrim SE launch logs found in $LOG_DIR"
+  log_file="$(find "$LOG_DIR" -maxdepth 1 -type f -name 'skyrim-se-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk 'NR==1 {$1=""; sub(/^ /, ""); print}')"
+  [[ -n "$log_file" ]] || die "No Skyrim SE launch logs found in $LOG_DIR"
+  say "$log_file"
+  tail -n "${PROTON_VORTEX_SKYRIM_LOG_LINES:-120}" "$log_file"
 }
 
 normalize_drive_letter() {
@@ -1581,6 +1631,7 @@ diagnose() {
     say "  proton-vortex-skyrim-se empty-staging"
     say "  proton-vortex-skyrim-se hardlink-test"
     say "  proton-vortex-skyrim-se audio-check"
+    say "  proton-vortex-skyrim-se last-log"
   else
     say "  game dir:    not found"
   fi
@@ -1595,6 +1646,7 @@ Usage:
   proton-vortex-skyrim-se fix-skse-launcher
   proton-vortex-skyrim-se force-vortex-skse
   proton-vortex-skyrim-se diagnose
+  proton-vortex-skyrim-se last-log
   proton-vortex-skyrim-se deployment
   proton-vortex-skyrim-se fix-staging
   proton-vortex-skyrim-se empty-staging
@@ -1619,10 +1671,13 @@ main() {
       ;;
     preflight-launch|launch-preflight|safe-launch|play-safe)
       shift
-      preflight_launch_skse "${1:-}"
+      run_with_skyrim_log preflight_launch_skse "${1:-}"
       ;;
     launch-skse|launch|play)
-      launch_skse
+      run_with_skyrim_log launch_skse
+      ;;
+    last-log|logs)
+      show_last_log
       ;;
     fix-skse-launcher|force-vortex-skse|skse-launcher|repair-skse-launcher|vortex-skse)
       fix_skse_launcher

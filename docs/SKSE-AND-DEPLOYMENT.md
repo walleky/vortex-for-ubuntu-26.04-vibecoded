@@ -26,6 +26,12 @@ The wrapper installs those files directly because that is more reliable under Pr
 proton-vortex-skyrim-se preflight-launch --force
 ```
 
+Every preflight/SKSE launch writes a log. If the dock launcher closes too fast to read, run:
+
+```bash
+proton-vortex-skyrim-se last-log
+```
+
 ## Verify SKSE Works
 
 Launch through:

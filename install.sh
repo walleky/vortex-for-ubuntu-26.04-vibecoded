@@ -1084,6 +1084,7 @@ main() {
     say "  Vortex downloads: ${VORTEX_DOWNLOADS_WIN_PATH:-not prepared}"
     say "  Vortex game path: ${VORTEX_SKYRIMSE_GAME_WIN_PATH:-not prepared}"
     say "  Preflight + launch SKSE: proton-vortex-skyrim-se preflight-launch"
+    say "  Last SKSE launch log:    proton-vortex-skyrim-se last-log"
     say "  Launch SKSE directly:    proton-vortex-skyrim-se launch-skse"
     say "  Update SKSE: proton-vortex-skyrim-se install-skse"
     say "  Fix staging: proton-vortex-skyrim-se fix-staging"

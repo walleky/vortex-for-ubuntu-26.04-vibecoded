@@ -32,6 +32,7 @@ proton-vortex doctor
 proton-vortex doctor --fix
 proton-vortex linked
 proton-vortex-skyrim-se preflight-launch
+proton-vortex-skyrim-se last-log
 proton-vortex-skyrim-se fix-staging
 ```
 
