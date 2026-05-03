@@ -171,6 +171,8 @@ If detection misses your setup, pass `skyrim_dir`, `staging_dir`,
   state only when `apply=true`.
 - Close Vortex before profile writes. Reopen Vortex afterward, select the wanted
   profile, then deploy mods before launching Skyrim.
+- The write tools refuse `apply=true` while `Vortex.exe` is running unless
+  `allow_running_vortex=true` is passed for advanced recovery work.
 - Profile writes use Vortex.exe `--set` instead of editing Vortex's database
   files directly.
 - `read_text_file` refuses to read outside detected Vortex/Skyrim roots unless

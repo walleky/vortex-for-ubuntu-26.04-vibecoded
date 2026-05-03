@@ -385,6 +385,23 @@ def run_vortex_cli(
     return result
 
 
+def is_vortex_process_running() -> bool:
+    if os.name != "nt":
+        return False
+    try:
+        proc = subprocess.run(
+            ["tasklist", "/FI", "IMAGENAME eq Vortex.exe", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    output = (proc.stdout or "").lower()
+    return "vortex.exe" in output and "no tasks" not in output
+
+
 def vortex_state_get(
     paths: List[str],
     vortex_exe_override: Optional[str] = None,
@@ -404,9 +421,14 @@ def vortex_state_set(
     changes: List[Dict[str, Any]],
     vortex_exe_override: Optional[str] = None,
     timeout_seconds: int = 60,
+    allow_running_vortex: bool = False,
 ) -> Dict[str, Any]:
     if not changes:
         raise ToolError("No Vortex state changes were requested.")
+    if not allow_running_vortex and is_vortex_process_running():
+        raise ToolError(
+            "Vortex.exe is running. Close Vortex before profile writes, or pass allow_running_vortex=true if you accept the race risk."
+        )
     cli_args: List[str] = []
     for change in changes:
         path = change.get("path")
@@ -1427,7 +1449,12 @@ def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
     changes = [{"path": state_path("persistent", "profiles", new_id), "value": cloned}]
     apply_result = None
     if apply_changes:
-        apply_result = vortex_state_set(changes, args.get("vortex_exe"), int(args.get("timeout_seconds", 60)))
+        apply_result = vortex_state_set(
+            changes,
+            args.get("vortex_exe"),
+            int(args.get("timeout_seconds", 60)),
+            bool(args.get("allow_running_vortex", False)),
+        )
     return {
         "dryRun": not apply_changes,
         "gameId": snapshot["gameId"],
@@ -1437,7 +1464,7 @@ def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
         "applied": bool(apply_result),
         "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
         "notes": [
-            "Use apply=true only with Vortex closed.",
+            "Use apply=true only with Vortex closed. By default this tool refuses writes while Vortex.exe is running.",
             "The clone copies enabled/disabled mod state so OpenClaw can experiment on a safer profile.",
             "Deploy mods in Vortex after activating or changing a profile.",
         ],
@@ -1477,7 +1504,12 @@ def vortex_set_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
     apply_changes = bool(args.get("apply", False))
     apply_result = None
     if apply_changes:
-        apply_result = vortex_state_set(changes, args.get("vortex_exe"), int(args.get("timeout_seconds", 60)))
+        apply_result = vortex_state_set(
+            changes,
+            args.get("vortex_exe"),
+            int(args.get("timeout_seconds", 60)),
+            bool(args.get("allow_running_vortex", False)),
+        )
     return {
         "dryRun": not apply_changes,
         "gameId": snapshot["gameId"],
@@ -1490,7 +1522,7 @@ def vortex_set_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
         "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
         "notes": [
             "This only changes Vortex profile state. It does not delete mods.",
-            "Close Vortex before apply=true so the app does not race the CLI write.",
+            "Close Vortex before apply=true. By default this tool refuses writes while Vortex.exe is running.",
             "Open Vortex afterward, switch to the profile if needed, and deploy mods before launching Skyrim.",
         ],
     }
@@ -1771,6 +1803,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "new_name": {"type": "string"},
                 "make_active": {"type": "boolean", "default": False},
                 "apply": {"type": "boolean", "default": False},
+                "allow_running_vortex": {"type": "boolean", "default": False},
                 "game_id": {"type": "string", "default": GAME_ID},
                 "vortex_exe": {"type": "string"},
                 "timeout_seconds": {"type": "integer", "default": 60},
@@ -1789,6 +1822,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "disable_mod_ids": {"type": "array", "items": {"type": "string"}},
                 "allow_unknown_mod_ids": {"type": "boolean", "default": False},
                 "apply": {"type": "boolean", "default": False},
+                "allow_running_vortex": {"type": "boolean", "default": False},
                 "game_id": {"type": "string", "default": GAME_ID},
                 "vortex_exe": {"type": "string"},
                 "timeout_seconds": {"type": "integer", "default": 60},
