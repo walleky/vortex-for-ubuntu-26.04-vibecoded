@@ -18,6 +18,22 @@ def main() -> int:
     ]
     parsed = mcp_server.parse_vortex_get_output('persistent.profiles.test = {"id":"test","modState":{}}\n')
     assert parsed["values"]["persistent.profiles.test"]["id"] == "test"
+    clone, changes = mcp_server.clone_profile_changes(
+        "clone",
+        "Safe Clone",
+        {
+            "id": "source",
+            "gameId": "skyrimse",
+            "name": "Source",
+            "lastActivated": 1,
+            "modState": {"mod.with.dot": {"enabled": True, "enabledTime": 2}},
+        },
+        False,
+    )
+    assert clone["id"] == "clone"
+    assert any(change["path"] == r"persistent.profiles.clone.modState.mod\.with\.dot" for change in changes)
+    batches = mcp_server.batched_state_changes(changes, max_chars=200)
+    assert batches and sum(len(batch) for batch in batches) == len(changes)
 
     proc = subprocess.Popen(
         [sys.executable, str(server)],
@@ -65,6 +81,7 @@ def main() -> int:
             assert "apply_ini_fixes" in names, names
             assert "vortex_profile_report" in names, names
             assert "vortex_profile_mods" in names, names
+            assert "vortex_profile_deployment_report" in names, names
             assert "vortex_clone_profile" in names, names
             assert "vortex_set_profile_mods" in names, names
         if msg["id"] == 3:

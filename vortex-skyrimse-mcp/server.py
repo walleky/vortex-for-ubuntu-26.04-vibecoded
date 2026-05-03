@@ -39,6 +39,7 @@ SKYRIM_APP_ID = "489830"
 GAME_ID = "skyrimse"
 MAX_DEFAULT_TEXT_BYTES = 200_000
 MAX_DEFAULT_FILES = 40_000
+MAX_VORTEX_CLI_CHARS = 24_000
 
 
 class ToolError(Exception):
@@ -225,8 +226,11 @@ def default_local_appdata() -> Optional[Path]:
 
 def find_vortex_exe(override: Optional[str] = None) -> Optional[Path]:
     override_path = expand_path(override)
-    if override_path and override_path.exists():
-        return override_path
+    if override_path:
+        if override_path.is_file():
+            return override_path
+        if override_path.is_dir() and (override_path / "Vortex.exe").exists():
+            return (override_path / "Vortex.exe").resolve()
 
     candidates: List[Path] = []
     local = default_local_appdata()
@@ -385,6 +389,40 @@ def run_vortex_cli(
     return result
 
 
+def make_set_arg(change: Dict[str, Any]) -> str:
+    path = change.get("path")
+    if not isinstance(path, str) or not path:
+        raise ToolError("Every Vortex state change needs a non-empty path.")
+    value = json.dumps(change.get("value"), separators=(",", ":"))
+    return f"{path}={value}"
+
+
+def cli_char_count(cli_args: List[str]) -> int:
+    return sum(len(arg) + 3 for arg in cli_args)
+
+
+def batched_state_changes(changes: List[Dict[str, Any]], max_chars: int = MAX_VORTEX_CLI_CHARS) -> List[List[Dict[str, Any]]]:
+    batches: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    current_args: List[str] = []
+    for change in changes:
+        set_arg = make_set_arg(change)
+        pair = ["--set", set_arg]
+        if cli_char_count(pair) > max_chars:
+            raise ToolError(
+                f"One Vortex state value is too large for a safe CLI call: {change.get('path')}"
+            )
+        if current and cli_char_count(current_args + pair) > max_chars:
+            batches.append(current)
+            current = []
+            current_args = []
+        current.append(change)
+        current_args.extend(pair)
+    if current:
+        batches.append(current)
+    return batches
+
+
 def is_vortex_process_running() -> bool:
     if os.name != "nt":
         return False
@@ -429,13 +467,28 @@ def vortex_state_set(
         raise ToolError(
             "Vortex.exe is running. Close Vortex before profile writes, or pass allow_running_vortex=true if you accept the race risk."
         )
-    cli_args: List[str] = []
-    for change in changes:
-        path = change.get("path")
-        if not isinstance(path, str) or not path:
-            raise ToolError("Every Vortex state change needs a non-empty path.")
-        cli_args.extend(["--set", f"{path}={json.dumps(change.get('value'), separators=(',', ':'))}"])
-    return run_vortex_cli(cli_args, vortex_exe_override, timeout_seconds)
+    calls = []
+    vortex_exe = None
+    for batch in batched_state_changes(changes):
+        cli_args: List[str] = []
+        for change in batch:
+            cli_args.extend(["--set", make_set_arg(change)])
+        result = run_vortex_cli(cli_args, vortex_exe_override, timeout_seconds)
+        vortex_exe = result["vortex_exe"]
+        calls.append(
+            {
+                "changeCount": len(batch),
+                "returncode": result["returncode"],
+                "stdout": result["stdout"],
+                "stderr": result["stderr"],
+            }
+        )
+    return {
+        "vortex_exe": vortex_exe,
+        "changeCount": len(changes),
+        "batchCount": len(calls),
+        "calls": calls,
+    }
 
 
 def now_ms() -> int:
@@ -1289,6 +1342,41 @@ def summarize_vortex_mod(mod_id: str, mods: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def change_plan_preview(changes: List[Dict[str, Any]], max_preview: int = 50) -> Dict[str, Any]:
+    limit = max(0, int(max_preview))
+    return {
+        "plannedChangeCount": len(changes),
+        "plannedChanges": changes[:limit],
+        "planTruncated": len(changes) > limit,
+        "maxPlanPreview": limit,
+    }
+
+
+def clone_profile_changes(
+    new_id: str,
+    new_name: str,
+    source: Dict[str, Any],
+    make_active: bool,
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    cloned = json.loads(json.dumps(source))
+    cloned["id"] = new_id
+    cloned["name"] = new_name
+    cloned["lastActivated"] = now_ms() if make_active else 0
+    cloned.pop("pendingRemove", None)
+
+    changes: List[Dict[str, Any]] = []
+    base_path = ("persistent", "profiles", new_id)
+    for key, value in cloned.items():
+        if key == "modState":
+            continue
+        changes.append({"path": state_path(*base_path, key), "value": value})
+
+    mod_state = cloned.get("modState") if isinstance(cloned.get("modState"), dict) else {}
+    for mod_id, entry in sorted(mod_state.items(), key=lambda item: str(item[0]).lower()):
+        changes.append({"path": state_path(*base_path, "modState", mod_id), "value": entry})
+    return cloned, changes
+
+
 def load_vortex_profile_state(args: Dict[str, Any], include_mods: bool = False) -> Dict[str, Any]:
     game_id = str(args.get("game_id") or GAME_ID)
     paths = ["persistent.profiles", "settings.profiles", "settings.profile"]
@@ -1432,6 +1520,151 @@ def vortex_compare_profiles(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def resolve_mod_staging_path(mod_id: str, mod_entry: Any, staging_dir: Optional[Path]) -> Optional[Path]:
+    candidates: List[Path] = []
+    if isinstance(mod_entry, dict):
+        raw_values = [
+            mod_entry.get("installationPath"),
+            mod_entry.get("path"),
+            mod_entry.get("installPath"),
+        ]
+        attributes = mod_entry.get("attributes") if isinstance(mod_entry.get("attributes"), dict) else {}
+        raw_values.extend([attributes.get("installationPath"), attributes.get("path")])
+        for raw in raw_values:
+            if not raw:
+                continue
+            path = Path(str(raw))
+            candidates.append(path)
+            if staging_dir and not path.is_absolute():
+                candidates.append(staging_dir / str(raw))
+    if staging_dir:
+        candidates.append(staging_dir / mod_id)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            resolved = candidate
+        key = str(resolved).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if resolved.exists() and resolved.is_dir():
+            return resolved
+    return None
+
+
+def root_plugin_paths(data_dir: Optional[Path]) -> Dict[str, str]:
+    if not data_dir or not data_dir.exists():
+        return {}
+    result: Dict[str, str] = {}
+    for child in data_dir.iterdir():
+        if child.is_file() and child.suffix.lower() in {".esp", ".esm", ".esl"}:
+            result[child.name.lower()] = str(child)
+    return result
+
+
+def vortex_profile_deployment_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    snapshot = load_vortex_profile_state(args, include_mods=True)
+    profile_id, profile = require_profile(snapshot, args.get("profile_id"))
+    vortex_appdata, skyrim_dir, staging_dir, _my_games = get_context_paths(args)
+    data_dir = skyrim_dir / "Data" if skyrim_dir else None
+    data_plugins = root_plugin_paths(data_dir)
+    local = expand_path(args.get("local_appdata")) or default_local_appdata()
+    state = plugin_state_paths(local)
+    plugins_txt = parse_plugin_list(Path(state["plugins_txt"]) if state["plugins_txt"] else None)
+    plugins_enabled = {
+        str(entry["name"]).lower()
+        for entry in plugins_txt.get("entries", [])
+        if entry.get("enabled")
+    }
+
+    mod_state = profile.get("modState") if isinstance(profile.get("modState"), dict) else {}
+    enabled_mod_ids = [str(mod_id) for mod_id, entry in mod_state.items() if profile_enabled(entry)]
+    max_mods = int(args.get("max_mods", 500))
+    max_files_per_mod = int(args.get("max_files_per_mod", 3000))
+    checked_mods = []
+    unresolved_mods = []
+    plugin_rows = []
+    profile_plugin_names: set[str] = set()
+
+    for mod_id in sorted(enabled_mod_ids, key=str.lower)[:max_mods]:
+        mod_entry = snapshot["mods"].get(mod_id)
+        mod_path = resolve_mod_staging_path(mod_id, mod_entry, staging_dir)
+        if not mod_path:
+            unresolved_mods.append({**summarize_vortex_mod(mod_id, snapshot["mods"]), "reason": "staging folder not found"})
+            continue
+        summary = mod_summary(mod_path, include_files=False, max_files=max_files_per_mod)
+        checked_mods.append(
+            {
+                **summarize_vortex_mod(mod_id, snapshot["mods"]),
+                "stagingPath": str(mod_path),
+                "pluginCount": len(summary.get("plugins", [])),
+                "archiveCount": len(summary.get("archives", [])),
+                "sksePluginCount": len(summary.get("sksePlugins", [])),
+            }
+        )
+        for rel in summary.get("plugins", []):
+            plugin_name = Path(rel).name
+            plugin_key = plugin_name.lower()
+            profile_plugin_names.add(plugin_key)
+            plugin_rows.append(
+                {
+                    "modId": mod_id,
+                    "modName": summarize_vortex_mod(mod_id, snapshot["mods"]).get("name"),
+                    "plugin": plugin_name,
+                    "relativePath": rel,
+                    "deployedInData": plugin_key in data_plugins,
+                    "enabledInPluginsTxt": plugin_key in plugins_enabled,
+                    "dataPath": data_plugins.get(plugin_key),
+                }
+            )
+
+    missing_from_data = [row for row in plugin_rows if not row["deployedInData"]]
+    not_enabled = [row for row in plugin_rows if not row["enabledInPluginsTxt"]]
+    enabled_plugins_not_seen_in_profile = sorted(plugins_enabled - profile_plugin_names)
+    issues = []
+    if not skyrim_dir or not skyrim_dir.exists():
+        issues.append("SkyrimSE.exe/Data folder was not found; pass skyrim_dir.")
+    if not staging_dir or not staging_dir.exists():
+        issues.append("Vortex staging folder was not found; pass staging_dir.")
+    if not plugins_txt.get("exists"):
+        issues.append("plugins.txt was not found; launch Skyrim once and deploy plugins in Vortex.")
+    if unresolved_mods:
+        issues.append("Some enabled profile mods could not be matched to staging folders.")
+    if missing_from_data:
+        issues.append("Some plugins from enabled profile mods are not present in Skyrim Data; deploy mods in Vortex.")
+    if not_enabled:
+        issues.append("Some plugins from enabled profile mods are not enabled in plugins.txt.")
+    if enabled_plugins_not_seen_in_profile and profile_plugin_names:
+        issues.append("plugins.txt has enabled plugins not seen in the selected profile; this may indicate the wrong profile or stale deployment.")
+
+    return {
+        "gameId": snapshot["gameId"],
+        "profile": summarize_profile(profile_id, profile, snapshot["activeProfileId"]),
+        "vortex_appdata": str(vortex_appdata) if vortex_appdata else None,
+        "staging_dir": str(staging_dir) if staging_dir else None,
+        "skyrim_data": str(data_dir) if data_dir else None,
+        "pluginsTxt": plugins_txt,
+        "enabledProfileModCount": len(enabled_mod_ids),
+        "checkedEnabledModCount": len(checked_mods),
+        "uncheckedEnabledModCount": max(0, len(enabled_mod_ids) - max_mods),
+        "unresolvedEnabledMods": unresolved_mods,
+        "checkedMods": checked_mods,
+        "profilePlugins": plugin_rows,
+        "pluginsFromEnabledModsMissingFromData": missing_from_data,
+        "pluginsFromEnabledModsNotEnabledInPluginsTxt": not_enabled,
+        "enabledPluginsTxtNotSeenInProfile": enabled_plugins_not_seen_in_profile,
+        "issues": issues,
+        "notes": [
+            "This is read-only. It compares the selected Vortex profile, staging folders, Skyrim Data, and plugins.txt.",
+            "After switching profiles or changing enabled mods, use Vortex Deploy Mods before launching Skyrim.",
+            "Texture/mesh/SKSE-only mods may have no ESP/ESM/ESL plugin and will not appear in profilePlugins.",
+        ],
+    }
+
+
 def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
     snapshot = load_vortex_profile_state(args, include_mods=False)
     source_id, source = require_profile(snapshot, args.get("source_profile_id"))
@@ -1441,12 +1674,7 @@ def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
     new_name = str(args.get("new_name") or f"OpenClaw Safe Test {now_stamp()}")
     make_active = bool(args.get("make_active", False))
     apply_changes = bool(args.get("apply", False))
-    cloned = json.loads(json.dumps(source))
-    cloned["id"] = new_id
-    cloned["name"] = new_name
-    cloned["lastActivated"] = now_ms() if make_active else 0
-    cloned.pop("pendingRemove", None)
-    changes = [{"path": state_path("persistent", "profiles", new_id), "value": cloned}]
+    cloned, changes = clone_profile_changes(new_id, new_name, source, make_active)
     apply_result = None
     if apply_changes:
         apply_result = vortex_state_set(
@@ -1460,12 +1688,13 @@ def vortex_clone_profile(args: Dict[str, Any]) -> Dict[str, Any]:
         "gameId": snapshot["gameId"],
         "sourceProfile": summarize_profile(source_id, source, snapshot["activeProfileId"]),
         "newProfile": summarize_profile(new_id, cloned, new_id if make_active else snapshot["activeProfileId"]),
-        "plannedChanges": changes,
+        **change_plan_preview(changes, int(args.get("max_plan_preview", 50))),
         "applied": bool(apply_result),
+        "applyBatches": apply_result.get("batchCount") if apply_result else None,
         "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
         "notes": [
             "Use apply=true only with Vortex closed. By default this tool refuses writes while Vortex.exe is running.",
-            "The clone copies enabled/disabled mod state so OpenClaw can experiment on a safer profile.",
+            "The clone copies enabled/disabled mod state in chunked CLI writes so large collections avoid Windows command-length failures.",
             "Deploy mods in Vortex after activating or changing a profile.",
         ],
     }
@@ -1517,8 +1746,9 @@ def vortex_set_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
         "enableModIds": enable_ids,
         "disableModIds": disable_ids,
         "unknownModIds": unknown_ids,
-        "plannedChanges": changes,
+        **change_plan_preview(changes, int(args.get("max_plan_preview", 50))),
         "applied": bool(apply_result),
+        "applyBatches": apply_result.get("batchCount") if apply_result else None,
         "vortex_exe": apply_result["vortex_exe"] if apply_result else snapshot["vortex_exe"],
         "notes": [
             "This only changes Vortex profile state. It does not delete mods.",
@@ -1600,6 +1830,11 @@ def write_report(args: Dict[str, Any]) -> Dict[str, Any]:
             report["vortexProfiles"] = vortex_profile_report(args)
         except Exception as exc:
             report["vortexProfilesError"] = str(exc)
+    if args.get("include_vortex_deployment", False):
+        try:
+            report["vortexProfileDeployment"] = vortex_profile_deployment_report(args)
+        except Exception as exc:
+            report["vortexProfileDeploymentError"] = str(exc)
     write_text(output_path, json.dumps(report, indent=2, ensure_ascii=False, default=str))
     return {"output_path": str(output_path), "sections": list(report.keys())}
 
@@ -1793,6 +2028,26 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
         },
         vortex_compare_profiles,
     ),
+    "vortex_profile_deployment_report": (
+        "Read-only check that enabled profile plugins are deployed into Skyrim Data and enabled in plugins.txt.",
+        {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string"},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "vortex_exe": {"type": "string"},
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "local_appdata": {"type": "string"},
+                "max_mods": {"type": "integer", "default": 500},
+                "max_files_per_mod": {"type": "integer", "default": 3000},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        vortex_profile_deployment_report,
+    ),
     "vortex_clone_profile": (
         "Clone a Vortex profile for safer experimentation. Dry-run by default; use apply=true with Vortex closed.",
         {
@@ -1804,6 +2059,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "make_active": {"type": "boolean", "default": False},
                 "apply": {"type": "boolean", "default": False},
                 "allow_running_vortex": {"type": "boolean", "default": False},
+                "max_plan_preview": {"type": "integer", "default": 50},
                 "game_id": {"type": "string", "default": GAME_ID},
                 "vortex_exe": {"type": "string"},
                 "timeout_seconds": {"type": "integer", "default": 60},
@@ -1823,6 +2079,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "allow_unknown_mod_ids": {"type": "boolean", "default": False},
                 "apply": {"type": "boolean", "default": False},
                 "allow_running_vortex": {"type": "boolean", "default": False},
+                "max_plan_preview": {"type": "integer", "default": 50},
                 "game_id": {"type": "string", "default": GAME_ID},
                 "vortex_exe": {"type": "string"},
                 "timeout_seconds": {"type": "integer", "default": 60},
@@ -1859,6 +2116,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "my_games_dir": {"type": "string"},
                 "include_mod_inventory": {"type": "boolean", "default": False},
                 "include_vortex_profiles": {"type": "boolean", "default": False},
+                "include_vortex_deployment": {"type": "boolean", "default": False},
             },
             "required": ["output_path"],
             "additionalProperties": False,

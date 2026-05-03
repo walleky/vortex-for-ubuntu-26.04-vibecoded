@@ -24,6 +24,8 @@ JSON-RPC over stdin/stdout.
 - Read Vortex profiles through Vortex's own CLI, show the active-profile guess,
   list enabled/disabled mods per profile, compare profiles, and clone a profile
   for safer testing.
+- Check whether plugins from the selected Vortex profile appear in Skyrim
+  `Data` and are enabled in `plugins.txt`.
 - Enable or disable exact Vortex mod ids in a selected profile only when
   `apply=true`. This is dry-run by default and never deletes mods.
 - Write a JSON report that another agent can analyze.
@@ -99,6 +101,12 @@ To make a safer test profile:
 Use vortex_clone_profile to clone my active Skyrim SE profile as "OpenClaw Safe Test". Keep it as a dry run first.
 ```
 
+For deployment/profile mismatch:
+
+```text
+Use vortex_profile_deployment_report to check whether my active Skyrim SE Vortex profile is actually deployed and enabled in plugins.txt. Do not apply changes.
+```
+
 For INI fixes:
 
 ```text
@@ -126,6 +134,7 @@ Use apply_ini_fixes with dry_run=false and make_backup=true.
 - `vortex_profile_report`
 - `vortex_profile_mods`
 - `vortex_compare_profiles`
+- `vortex_profile_deployment_report`
 - `vortex_clone_profile`
 - `vortex_set_profile_mods`
 - `suggest_conflict_fixes`
@@ -163,8 +172,9 @@ If detection misses your setup, pass `skyrim_dir`, `staging_dir`,
 - `detect_environment`, `inventory_mods`, `analyze_conflicts`,
   `redundant_mod_report`, `plugin_report`, `mod_evidence`, `ini_report`,
   `read_text_file`, `vortex_cli_get`, `vortex_profile_report`,
-  `vortex_profile_mods`, `vortex_compare_profiles`, `suggest_conflict_fixes`,
-  and `write_report` do not modify Vortex or Skyrim.
+  `vortex_profile_mods`, `vortex_compare_profiles`,
+  `vortex_profile_deployment_report`, `suggest_conflict_fixes`, and
+  `write_report` do not modify Vortex or Skyrim.
 - `apply_ini_fixes` can write INI files only when `dry_run=false`.
 - `apply_ini_fixes` creates backups by default.
 - `vortex_clone_profile` and `vortex_set_profile_mods` can write Vortex profile
@@ -175,6 +185,8 @@ If detection misses your setup, pass `skyrim_dir`, `staging_dir`,
   `allow_running_vortex=true` is passed for advanced recovery work.
 - Profile writes use Vortex.exe `--set` instead of editing Vortex's database
   files directly.
+- Large profile clones are written in smaller CLI batches to avoid Windows
+  command-line length failures on big Nexus Collections.
 - `read_text_file` refuses to read outside detected Vortex/Skyrim roots unless
   `allow_any_path=true`.
 
@@ -195,6 +207,11 @@ If OpenClaw wants to experiment, the safer flow is:
 
 For exact mod toggles, run `vortex_profile_mods` first and copy the exact `id`
 values into `vortex_set_profile_mods`. Do not guess mod ids.
+
+If Skyrim launches but the mods do not show up, run
+`vortex_profile_deployment_report`. It checks the common mismatch: Vortex says a
+mod is enabled on a profile, but the plugin is not deployed into Skyrim `Data` or
+is not enabled in `%LOCALAPPDATA%\Skyrim Special Edition\plugins.txt`.
 
 ## Manual Smoke Test
 
