@@ -560,7 +560,7 @@ doctor() {
 show_last_log() {
   local log_file
   [[ -d "$LOG_DIR" ]] || die "No Vortex logs found in $LOG_DIR"
-  log_file="$(find "$LOG_DIR" -maxdepth 1 -type f -name 'vortex-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk 'NR==1 {$1=\"\"; sub(/^ /, \"\"); print}')"
+  log_file="$(find "$LOG_DIR" -maxdepth 1 -type f -name 'vortex-*.log' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk 'NR==1 {$1=""; sub(/^ /, ""); print}')"
   [[ -n "$log_file" ]] || die "No Vortex logs found in $LOG_DIR"
   say "$log_file"
   tail -n "${PROTON_VORTEX_LOG_LINES:-80}" "$log_file"

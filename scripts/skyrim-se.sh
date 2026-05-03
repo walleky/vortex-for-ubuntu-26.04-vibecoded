@@ -52,10 +52,11 @@ run_with_skyrim_log() {
   say_err "Skyrim SE launch log: $log_file"
 
   set +e
-  {
+  (
+    set -Eeuo pipefail
     say "Skyrim SE launch log: $log_file"
     "$@"
-  } 2>&1 | tee "$log_file"
+  ) 2>&1 | tee "$log_file"
   status=${PIPESTATUS[0]}
   set -e
 
@@ -980,7 +981,19 @@ count_data_plugins() {
 count_enabled_plugins_txt() {
   local plugins_txt="$1"
   [[ -f "$plugins_txt" ]] || { printf '0\n'; return 0; }
-  grep -E '^\*.*\.(esm|esp|esl)$' "$plugins_txt" 2>/dev/null | wc -l | tr -d '[:space:]'
+  awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      lower = tolower(line)
+      if (lower ~ /^\*.*\.(esm|esp|esl)$/) {
+        count++
+      }
+    }
+    END {
+      print count + 0
+    }
+  ' "$plugins_txt"
 }
 
 voice_archive_count() {
