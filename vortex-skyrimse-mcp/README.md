@@ -26,6 +26,8 @@ JSON-RPC over stdin/stdout.
   for safer testing.
 - Check whether plugins from the selected Vortex profile appear in Skyrim
   `Data` and are enabled in `plugins.txt`.
+- Produce a one-shot modded play report that combines environment, SKSE, audio
+  archive, profile deployment, plugin, and INI checks into prioritized findings.
 - Enable or disable exact Vortex mod ids in a selected profile only when
   `apply=true`. This is dry-run by default and never deletes mods.
 - Write a JSON report that another agent can analyze.
@@ -107,6 +109,12 @@ For deployment/profile mismatch:
 Use vortex_profile_deployment_report to check whether my active Skyrim SE Vortex profile is actually deployed and enabled in plugins.txt. Do not apply changes.
 ```
 
+For a single no-hassle diagnosis:
+
+```text
+Use skyrim_modded_play_report to tell me why my modded Skyrim SE setup is not launching with the expected Vortex profile. Do not apply changes.
+```
+
 For INI fixes:
 
 ```text
@@ -137,6 +145,7 @@ Use apply_ini_fixes with dry_run=false and make_backup=true.
 - `vortex_profile_deployment_report`
 - `vortex_clone_profile`
 - `vortex_set_profile_mods`
+- `skyrim_modded_play_report`
 - `suggest_conflict_fixes`
 - `write_report`
 
@@ -173,8 +182,8 @@ If detection misses your setup, pass `skyrim_dir`, `staging_dir`,
   `redundant_mod_report`, `plugin_report`, `mod_evidence`, `ini_report`,
   `read_text_file`, `vortex_cli_get`, `vortex_profile_report`,
   `vortex_profile_mods`, `vortex_compare_profiles`,
-  `vortex_profile_deployment_report`, `suggest_conflict_fixes`, and
-  `write_report` do not modify Vortex or Skyrim.
+  `vortex_profile_deployment_report`, `skyrim_modded_play_report`,
+  `suggest_conflict_fixes`, and `write_report` do not modify Vortex or Skyrim.
 - `apply_ini_fixes` can write INI files only when `dry_run=false`.
 - `apply_ini_fixes` creates backups by default.
 - `vortex_clone_profile` and `vortex_set_profile_mods` can write Vortex profile
@@ -212,6 +221,10 @@ If Skyrim launches but the mods do not show up, run
 `vortex_profile_deployment_report`. It checks the common mismatch: Vortex says a
 mod is enabled on a profile, but the plugin is not deployed into Skyrim `Data` or
 is not enabled in `%LOCALAPPDATA%\Skyrim Special Edition\plugins.txt`.
+
+For the broadest first pass, run `skyrim_modded_play_report`. It adds SKSE,
+missing audio archive, missing master, stale `plugins.txt`, and INI checks, then
+sorts the findings by severity.
 
 ## Manual Smoke Test
 

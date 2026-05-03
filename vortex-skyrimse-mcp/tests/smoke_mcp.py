@@ -34,6 +34,10 @@ def main() -> int:
     assert any(change["path"] == r"persistent.profiles.clone.modState.mod\.with\.dot" for change in changes)
     batches = mcp_server.batched_state_changes(changes, max_chars=200)
     assert batches and sum(len(batch) for batch in batches) == len(changes)
+    findings = []
+    mcp_server.add_finding(findings, "low", "later", "later", "later")
+    mcp_server.add_finding(findings, "critical", "first", "first", "first")
+    assert mcp_server.sort_findings(findings)[0]["code"] == "first"
 
     proc = subprocess.Popen(
         [sys.executable, str(server)],
@@ -84,6 +88,7 @@ def main() -> int:
             assert "vortex_profile_deployment_report" in names, names
             assert "vortex_clone_profile" in names, names
             assert "vortex_set_profile_mods" in names, names
+            assert "skyrim_modded_play_report" in names, names
         if msg["id"] == 3:
             assert data["result"]["isError"] is False, data
     proc.kill()

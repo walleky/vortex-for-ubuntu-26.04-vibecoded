@@ -1565,6 +1565,52 @@ def root_plugin_paths(data_dir: Optional[Path]) -> Dict[str, str]:
     return result
 
 
+def skyrim_file_health(args: Dict[str, Any]) -> Dict[str, Any]:
+    skyrim_dir = find_skyrim_dir(args.get("skyrim_dir"))
+    data_dir = skyrim_dir / "Data" if skyrim_dir else None
+    issues = []
+
+    skse_loader = skyrim_dir / "skse64_loader.exe" if skyrim_dir else None
+    skse_dlls = sorted(skyrim_dir.glob("skse64_*.dll")) if skyrim_dir and skyrim_dir.exists() else []
+    skse_script_files = (
+        sorted((data_dir / "Scripts").glob("skse*.pex"))
+        if data_dir and (data_dir / "Scripts").exists()
+        else []
+    )
+    if not skyrim_dir or not skyrim_dir.exists():
+        issues.append("SkyrimSE.exe was not found.")
+    if skyrim_dir and not path_exists(skse_loader):
+        issues.append("skse64_loader.exe is missing beside SkyrimSE.exe.")
+    if skyrim_dir and not skse_dlls:
+        issues.append("SKSE runtime DLLs are missing beside SkyrimSE.exe.")
+    if data_dir and data_dir.exists() and not skse_script_files:
+        issues.append("SKSE script files were not found under Data\\Scripts.")
+
+    voice_archives = sorted(data_dir.glob("Skyrim - Voices_*.bsa")) if data_dir and data_dir.exists() else []
+    sound_archive = data_dir / "Skyrim - Sounds.bsa" if data_dir else None
+    if data_dir and data_dir.exists() and not voice_archives:
+        issues.append("No Skyrim voice archive was found in Data; missing voices can happen if the game files are incomplete.")
+    if data_dir and data_dir.exists() and not path_exists(sound_archive):
+        issues.append("Skyrim - Sounds.bsa was not found in Data; sound assets may be incomplete.")
+
+    return {
+        "skyrim_dir": str(skyrim_dir) if skyrim_dir else None,
+        "data_dir": str(data_dir) if data_dir else None,
+        "skse": {
+            "loader": str(skse_loader) if skse_loader else None,
+            "loaderExists": bool(path_exists(skse_loader)),
+            "dlls": [str(path) for path in skse_dlls],
+            "scriptFileCount": len(skse_script_files),
+        },
+        "audioArchives": {
+            "voices": [str(path) for path in voice_archives],
+            "sound": str(sound_archive) if sound_archive else None,
+            "soundExists": bool(path_exists(sound_archive)),
+        },
+        "issues": issues,
+    }
+
+
 def vortex_profile_deployment_report(args: Dict[str, Any]) -> Dict[str, Any]:
     snapshot = load_vortex_profile_state(args, include_mods=True)
     profile_id, profile = require_profile(snapshot, args.get("profile_id"))
@@ -1758,6 +1804,246 @@ def vortex_set_profile_mods(args: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+FINDING_SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def add_finding(
+    findings: List[Dict[str, Any]],
+    severity: str,
+    code: str,
+    message: str,
+    next_action: str,
+    evidence: Any = None,
+) -> None:
+    item = {
+        "severity": severity,
+        "code": code,
+        "message": message,
+        "nextAction": next_action,
+    }
+    if evidence is not None:
+        item["evidence"] = evidence
+    findings.append(item)
+
+
+def sort_findings(findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return sorted(
+        findings,
+        key=lambda item: (FINDING_SEVERITY_ORDER.get(str(item.get("severity")), 9), str(item.get("code"))),
+    )
+
+
+def report_status(section: Any) -> str:
+    if isinstance(section, dict) and "error" in section:
+        return "error"
+    return "ok"
+
+
+def skyrim_modded_play_report(args: Dict[str, Any]) -> Dict[str, Any]:
+    findings: List[Dict[str, Any]] = []
+    sections: Dict[str, Any] = {}
+
+    try:
+        sections["environment"] = detect_environment(args)
+    except Exception as exc:
+        sections["environment"] = {"error": str(exc)}
+        add_finding(findings, "critical", "environment_failed", str(exc), "Fix basic path detection first.")
+
+    try:
+        sections["fileHealth"] = skyrim_file_health(args)
+    except Exception as exc:
+        sections["fileHealth"] = {"error": str(exc)}
+        add_finding(findings, "high", "file_health_failed", str(exc), "Pass skyrim_dir explicitly and rerun.")
+
+    try:
+        sections["profiles"] = vortex_profile_report(args)
+    except Exception as exc:
+        sections["profiles"] = {"error": str(exc)}
+        add_finding(
+            findings,
+            "medium",
+            "profile_report_failed",
+            str(exc),
+            "Pass vortex_exe, close Vortex if needed, and rerun profile detection.",
+        )
+
+    try:
+        sections["deployment"] = vortex_profile_deployment_report(args)
+    except Exception as exc:
+        sections["deployment"] = {"error": str(exc)}
+        add_finding(
+            findings,
+            "high",
+            "deployment_report_failed",
+            str(exc),
+            "Make sure Vortex is installed, Skyrim SE is detected, and staging_dir/vortex_exe are correct.",
+        )
+
+    try:
+        sections["plugins"] = plugin_report(args)
+    except Exception as exc:
+        sections["plugins"] = {"error": str(exc)}
+        add_finding(findings, "high", "plugin_report_failed", str(exc), "Pass skyrim_dir and staging_dir explicitly.")
+
+    try:
+        sections["ini"] = ini_report(args)
+    except Exception as exc:
+        sections["ini"] = {"error": str(exc)}
+        add_finding(
+            findings,
+            "low",
+            "ini_report_failed",
+            str(exc),
+            "Launch Skyrim once so the INI folder exists, or pass my_games_dir.",
+        )
+
+    env = sections.get("environment") if isinstance(sections.get("environment"), dict) else {}
+    for issue in env.get("issues", []) if isinstance(env, dict) else []:
+        severity = "high" if "SkyrimSE.exe" in issue or "SKSE64" in issue else "medium"
+        add_finding(findings, severity, "environment_issue", issue, "Fix the detected path/setup issue, then rerun.")
+
+    file_health = sections.get("fileHealth") if isinstance(sections.get("fileHealth"), dict) else {}
+    for issue in file_health.get("issues", []) if isinstance(file_health, dict) else []:
+        if "voice archive" in issue or "Sounds.bsa" in issue:
+            add_finding(
+                findings,
+                "high",
+                "audio_archives_missing",
+                issue,
+                "Verify Skyrim SE files in Steam. On Proton/Wine, also install the XAudio/XACT workaround if voices are still silent after archives exist.",
+            )
+        elif "SKSE" in issue or "skse64" in issue:
+            add_finding(
+                findings,
+                "high",
+                "skse_incomplete",
+                issue,
+                "Install the SKSE build that matches your Skyrim runtime, with loader/DLLs beside SkyrimSE.exe and scripts under Data\\Scripts.",
+            )
+        else:
+            add_finding(findings, "medium", "game_files_issue", issue, "Verify Skyrim SE files and rerun.")
+
+    deployment = sections.get("deployment") if isinstance(sections.get("deployment"), dict) else {}
+    if isinstance(deployment, dict) and "error" not in deployment:
+        for issue in deployment.get("issues", []):
+            severity = "high" if "not present in Skyrim Data" in issue or "not enabled in plugins.txt" in issue else "medium"
+            next_action = "In Vortex, select the intended profile, enable the missing plugins, then click Deploy Mods."
+            add_finding(findings, severity, "profile_deployment_issue", issue, next_action)
+        missing_count = len(deployment.get("pluginsFromEnabledModsMissingFromData", []))
+        disabled_count = len(deployment.get("pluginsFromEnabledModsNotEnabledInPluginsTxt", []))
+        stale_count = len(deployment.get("enabledPluginsTxtNotSeenInProfile", []))
+        if missing_count:
+            add_finding(
+                findings,
+                "high",
+                "enabled_profile_plugins_not_deployed",
+                f"{missing_count} plugin(s) from enabled profile mods are not in Skyrim Data.",
+                "Click Deploy Mods in Vortex and confirm the game path/staging path are correct.",
+                deployment.get("pluginsFromEnabledModsMissingFromData", [])[:20],
+            )
+        if disabled_count:
+            add_finding(
+                findings,
+                "high",
+                "enabled_profile_plugins_disabled",
+                f"{disabled_count} plugin(s) from enabled profile mods are not enabled in plugins.txt.",
+                "Open Vortex Plugins, enable the plugins, sort if needed, then deploy.",
+                deployment.get("pluginsFromEnabledModsNotEnabledInPluginsTxt", [])[:20],
+            )
+        if stale_count:
+            add_finding(
+                findings,
+                "medium",
+                "plugins_txt_may_be_stale",
+                f"{stale_count} enabled plugins.txt entrie(s) were not seen in the selected Vortex profile.",
+                "Confirm the active Vortex profile is the one you launch with, then deploy again.",
+                deployment.get("enabledPluginsTxtNotSeenInProfile", [])[:40],
+            )
+
+    plugins = sections.get("plugins") if isinstance(sections.get("plugins"), dict) else {}
+    if isinstance(plugins, dict) and "error" not in plugins:
+        missing_enabled = plugins.get("missingEnabledPlugins", [])
+        missing_masters = plugins.get("missingMasters", [])
+        if missing_enabled:
+            add_finding(
+                findings,
+                "high",
+                "plugins_txt_points_to_missing_files",
+                f"{len(missing_enabled)} enabled plugin(s) in plugins.txt are missing on disk.",
+                "Deploy in Vortex, or disable/remove stale plugins from the active profile.",
+                missing_enabled[:40],
+            )
+        if missing_masters:
+            add_finding(
+                findings,
+                "critical",
+                "missing_plugin_masters",
+                f"{len(missing_masters)} plugin master requirement(s) are missing.",
+                "Install/enable the required master mods or disable the dependent plugins before launching the save.",
+                missing_masters[:40],
+            )
+
+    ini = sections.get("ini") if isinstance(sections.get("ini"), dict) else {}
+    if isinstance(ini, dict) and "error" not in ini:
+        failed_ini = [rec for rec in ini.get("recommendations", []) if not rec.get("ok")]
+        if failed_ini:
+            add_finding(
+                findings,
+                "low",
+                "ini_recommendations_not_applied",
+                f"{len(failed_ini)} Skyrim INI recommendation(s) are not applied.",
+                "Run apply_ini_fixes as a dry-run first, then with dry_run=false only if you approve.",
+                failed_ini,
+            )
+
+    if bool(args.get("include_conflicts", False)):
+        try:
+            sections["conflictPlan"] = suggest_conflict_fixes(args)
+            sensitive = [
+                action
+                for action in sections["conflictPlan"].get("actions", [])
+                if action.get("type") in {"missing_master", "sensitive_file_conflict"}
+            ]
+            if sensitive:
+                add_finding(
+                    findings,
+                    "medium",
+                    "sensitive_conflicts",
+                    f"{len(sensitive)} missing-master or sensitive-conflict action(s) were found.",
+                    "Review Vortex Conflicts and Plugins before launching a real save.",
+                    sensitive[:40],
+                )
+        except Exception as exc:
+            sections["conflictPlan"] = {"error": str(exc)}
+
+    findings = sort_findings(findings)
+    highest = findings[0]["severity"] if findings else "none"
+    ok_to_launch_modded = highest not in {"critical", "high"}
+    recommended_actions = []
+    seen_actions: set[str] = set()
+    for finding in findings:
+        action = finding.get("nextAction")
+        if action and action not in seen_actions:
+            recommended_actions.append(action)
+            seen_actions.add(action)
+
+    return {
+        "summary": {
+            "okToLaunchModded": ok_to_launch_modded,
+            "highestSeverity": highest,
+            "findingCount": len(findings),
+            "sectionStatus": {key: report_status(value) for key, value in sections.items()},
+        },
+        "findings": findings,
+        "recommendedActions": recommended_actions,
+        "sections": sections,
+        "notes": [
+            "This tool is read-only. It does not change Vortex, Skyrim, plugins.txt, or INI files.",
+            "For modded Skyrim SE, launch through SKSE after Vortex deploys the intended active profile.",
+        ],
+    }
+
+
 def suggest_conflict_fixes(args: Dict[str, Any]) -> Dict[str, Any]:
     conflicts = analyze_conflicts({**args, "hash_files": args.get("hash_files", False)})
     plugins = plugin_report(args) if find_skyrim_dir(args.get("skyrim_dir")) else {}
@@ -1806,8 +2092,11 @@ def write_report(args: Dict[str, Any]) -> Dict[str, Any]:
     report = {
         "generatedAt": _dt.datetime.now().isoformat(),
         "environment": detect_environment(args),
-        "ini": ini_report(args),
     }
+    try:
+        report["ini"] = ini_report(args)
+    except Exception as exc:
+        report["iniError"] = str(exc)
     try:
         report["plugins"] = plugin_report(args)
     except Exception as exc:
@@ -1835,6 +2124,11 @@ def write_report(args: Dict[str, Any]) -> Dict[str, Any]:
             report["vortexProfileDeployment"] = vortex_profile_deployment_report(args)
         except Exception as exc:
             report["vortexProfileDeploymentError"] = str(exc)
+    if args.get("include_play_report", False):
+        try:
+            report["skyrimModdedPlay"] = skyrim_modded_play_report(args)
+        except Exception as exc:
+            report["skyrimModdedPlayError"] = str(exc)
     write_text(output_path, json.dumps(report, indent=2, ensure_ascii=False, default=str))
     return {"output_path": str(output_path), "sections": list(report.keys())}
 
@@ -2088,6 +2382,28 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
         },
         vortex_set_profile_mods,
     ),
+    "skyrim_modded_play_report": (
+        "One-shot read-only report for why modded Skyrim SE may not be launching with the expected Vortex profile.",
+        {
+            "type": "object",
+            "properties": {
+                "profile_id": {"type": "string"},
+                "game_id": {"type": "string", "default": GAME_ID},
+                "vortex_exe": {"type": "string"},
+                "vortex_appdata": {"type": "string"},
+                "skyrim_dir": {"type": "string"},
+                "staging_dir": {"type": "string"},
+                "my_games_dir": {"type": "string"},
+                "local_appdata": {"type": "string"},
+                "include_conflicts": {"type": "boolean", "default": False},
+                "max_mods": {"type": "integer", "default": 500},
+                "max_files_per_mod": {"type": "integer", "default": 3000},
+                "timeout_seconds": {"type": "integer", "default": 60},
+            },
+            "additionalProperties": False,
+        },
+        skyrim_modded_play_report,
+    ),
     "suggest_conflict_fixes": (
         "Create an assistant-readable repair plan for missing masters, sensitive conflicts, and duplicate files.",
         {
@@ -2117,6 +2433,7 @@ TOOLS: Dict[str, Tuple[str, Dict[str, Any], Callable[[Dict[str, Any]], Dict[str,
                 "include_mod_inventory": {"type": "boolean", "default": False},
                 "include_vortex_profiles": {"type": "boolean", "default": False},
                 "include_vortex_deployment": {"type": "boolean", "default": False},
+                "include_play_report": {"type": "boolean", "default": False},
             },
             "required": ["output_path"],
             "additionalProperties": False,
