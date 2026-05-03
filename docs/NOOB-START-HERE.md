@@ -218,7 +218,7 @@ SKSE_AUTO_UPDATE=1 bash install.sh
 To play Skyrim with SKSE:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 Or use the app menu launcher:
@@ -227,12 +227,12 @@ Or use the app menu launcher:
 Skyrim SE SKSE (Proton)
 ```
 
-That is the best way to play modded Skyrim. Use Vortex to install/deploy mods. Use Steam mostly for first launch setup or plain unmodded Skyrim.
+That is the best way to play modded Skyrim. It checks the common deployment/SKSE/audio problems first, then starts SKSE. Use Vortex to install/deploy mods. Use Steam mostly for first launch setup or plain unmodded Skyrim.
 
 Vortex's own dashboard/play button only uses SKSE if Vortex has detected SKSE and made that tool primary. The wrapper cannot safely force Vortex's private state without risking your mod setup, so the no-hassle guaranteed launch path is the **Skyrim SE SKSE (Proton)** app icon or:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 If your dock supports right-click actions, the Vortex app icon also gets **Launch Skyrim SE SKSE** after rerunning `bash install.sh`.
@@ -249,7 +249,7 @@ If Vortex downloaded mods but Skyrim still looks vanilla:
 2. Make sure the mods are enabled
 3. Open the Plugins tab and enable the plugins
 4. Click **Deploy Mods**
-5. Launch with `proton-vortex-skyrim-se launch-skse`
+5. Launch with `proton-vortex-skyrim-se preflight-launch`
 
 Then run:
 
@@ -327,6 +327,7 @@ Common fixes:
 - If Vortex cannot find Skyrim, run Skyrim once from Steam first
 - If you see "No Proton prefix found", rerun `bash install.sh`; the installer now tries to create the prefix for you
 - If SKSE is missing, run `proton-vortex-skyrim-se install-skse`
+- If preflight blocks launch but you intentionally want to test anyway, run `proton-vortex-skyrim-se preflight-launch --force`
 - If SKSE says it cannot find `SkyrimSE.exe`, close Vortex and run `proton-vortex-skyrim-se fix-skse-launcher`
 - If Vortex says the staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`
 - If Vortex says the destination folder must be empty, run `proton-vortex-skyrim-se empty-staging`

@@ -89,7 +89,11 @@ Icon=proton-vortex
 NoDisplay=false
 StartupWMClass=vortex.exe
 StartupNotify=true
-Actions=LaunchSKSE;FixStaging;
+Actions=PreflightLaunchSKSE;LaunchSKSE;FixStaging;
+
+[Desktop Action PreflightLaunchSKSE]
+Name=Preflight then Launch Skyrim SE SKSE
+Exec=$(desktop_quote "$helper") preflight-launch
 
 [Desktop Action LaunchSKSE]
 Name=Launch Skyrim SE SKSE
@@ -121,7 +125,7 @@ Name=Skyrim SE SKSE (Proton)
 Comment=Launch Skyrim Special Edition through SKSE64 and Proton
 Categories=Game;
 Keywords=Skyrim;SKSE;Vortex;Mods;
-Exec=$(desktop_quote "$helper") launch-skse
+Exec=$(desktop_quote "$helper") preflight-launch
 Terminal=false
 Icon=proton-vortex-skyrim-se
 NoDisplay=false
@@ -547,7 +551,7 @@ doctor() {
   say "  - If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test"
   say "  - Nexus Free accounts may still require manual collection download clicks."
   if ((linked == 1)); then
-    say "  - Best launch path for modded play: proton-vortex-skyrim-se launch-skse"
+    say "  - Best launch path for modded play: proton-vortex-skyrim-se preflight-launch"
   fi
 
   return "$status"
@@ -624,6 +628,7 @@ Usage:
   proton-vortex doctor --fix
   proton-vortex linked
   proton-vortex preflight
+  proton-vortex preflight-launch [--force]
   proton-vortex last-log
   proton-vortex self-update
   proton-vortex repair-vortex
@@ -651,6 +656,11 @@ EOF_HELP
       ;;
     preflight)
       doctor
+      return $?
+      ;;
+    preflight-launch|launch-skse|play-skse)
+      shift
+      "$(skyrim_helper_path)" preflight-launch "$@"
       return $?
       ;;
     linked|link-status)

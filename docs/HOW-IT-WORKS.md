@@ -186,7 +186,7 @@ For a direct archive URL:
 
 `bash install.sh` skips this automatic SKSE step when `skse64_loader.exe` already exists. That keeps wrapper updates from changing game-folder SKSE files unexpectedly. Use `proton-vortex-skyrim-se install-skse` or `SKSE_AUTO_UPDATE=1 bash install.sh` when you intentionally want to refresh SKSE.
 
-`proton-vortex-skyrim-se launch-skse` runs:
+`proton-vortex-skyrim-se preflight-launch` checks the common blockers, then runs:
 
 ```text
 skse64_loader.exe
@@ -198,8 +198,8 @@ Vortex's own Dashboard/Play button uses SKSE only after Vortex has detected SKSE
 
 ```text
 Skyrim SE SKSE (Proton)
-proton-vortex-skyrim-se launch-skse
-Vortex dock action: Launch Skyrim SE SKSE
+proton-vortex-skyrim-se preflight-launch
+Vortex dock action: Preflight then Launch Skyrim SE SKSE
 C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.bat
 ```
 

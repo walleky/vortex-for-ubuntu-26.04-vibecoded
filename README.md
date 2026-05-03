@@ -43,6 +43,7 @@ If you are an AI assistant or maintainer:
 - Larger 200% Wine/Proton file picker dialogs, while Vortex itself still defaults to 150% Electron scale
 - Automatic SKSE64 install helper for Steam Skyrim Special Edition
 - A normal app launcher named **Skyrim SE SKSE (Proton)**
+- The Skyrim SE launcher runs a preflight check before SKSE by default
 - A normal app launcher named **Vortex (Proton)**
 - Linux desktop/dock icons for Vortex, Skyrim SKSE, and archive import
 - A registered `nxm://` handler for Nexus Mods browser links
@@ -94,7 +95,7 @@ The installer will:
 
 Launch Vortex from your app menu with **Vortex (Proton)**.
 
-Launch Skyrim through SKSE with **Skyrim SE SKSE (Proton)**.
+Launch Skyrim through SKSE with **Skyrim SE SKSE (Proton)**. That launcher now runs a preflight check first, then starts SKSE if the setup is safe enough to launch.
 
 For Nexus Mods:
 
@@ -175,7 +176,7 @@ These make the old picker less hostile, but the safest paths to paste/use are st
 
 SKSE64 is handled directly by this wrapper because SKSE needs loader/DLL files beside `SkyrimSE.exe`.
 
-If Vortex downloaded mods but Skyrim still looks unmodded, read [SKSE And Deployment Checklist](docs/SKSE-AND-DEPLOYMENT.md). The short version is: install/enable mods, enable plugins, click **Deploy Mods**, and launch with `proton-vortex-skyrim-se launch-skse`.
+If Vortex downloaded mods but Skyrim still looks unmodded, read [SKSE And Deployment Checklist](docs/SKSE-AND-DEPLOYMENT.md). The short version is: install/enable mods, enable plugins, click **Deploy Mods**, and launch with `proton-vortex-skyrim-se preflight-launch`.
 
 ## Commands
 
@@ -187,10 +188,12 @@ proton-vortex doctor
 proton-vortex doctor --fix
 proton-vortex linked
 proton-vortex preflight
+proton-vortex preflight-launch
 proton-vortex last-log
 proton-vortex self-update
 proton-vortex repair-vortex
 proton-vortex-skyrim-se install-skse
+proton-vortex-skyrim-se preflight-launch
 proton-vortex-skyrim-se launch-skse
 proton-vortex-skyrim-se fix-skse-launcher
 proton-vortex-skyrim-se fix-staging
@@ -205,7 +208,7 @@ bash uninstall.sh
 - This is a Proton wrapper, not a rewritten native Linux Vortex build.
 - Vortex itself still runs as the Windows app inside Proton.
 - SKSE64 is installed directly into the Skyrim SE folder because that is the least fussy path: `skse64_loader.exe`, the SKSE DLLs, and the `Data` folder contents are copied where Skyrim expects them.
-- Best launch path for modded play is `proton-vortex-skyrim-se launch-skse` or the **Skyrim SE SKSE (Proton)** app icon. Use Steam for first-run setup/unmodded launching, and Vortex for managing/deploying mods.
+- Best launch path for modded play is `proton-vortex-skyrim-se preflight-launch` or the **Skyrim SE SKSE (Proton)** app icon. Use Steam for first-run setup/unmodded launching, and Vortex for managing/deploying mods.
 - To verify SKSE, launch through the helper, open Skyrim's console with `~`, and run `getskseversion`.
 - If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run `proton-vortex-skyrim-se fix-skse-launcher` with Vortex closed. It now patches Vortex's Skyrim game path, sets a Proton-safe SKSE primary tool, and creates `Launch Skyrim SE SKSE.cmd` helpers that run from the real game folder.
 - Updates from this repo do not delete Vortex mods, collections, or downloaded archives. They replace wrapper scripts, desktop files, and icons while reusing the same Proton prefix and app data.
@@ -224,7 +227,7 @@ bash uninstall.sh
 - If Vortex says the mod staging folder is not writable, run `proton-vortex-skyrim-se fix-staging`, then use the printed `S:\...` paths in Vortex.
 - If Vortex says the destination folder has to be empty, run `proton-vortex-skyrim-se empty-staging`, then use the fresh empty `S:\...` path it prints.
 - If Vortex says **No Vortex uninstall key**, run `proton-vortex repair-vortex`. This reinstalls Vortex over itself to recreate installer/registry metadata without deleting Vortex AppData, downloads, staging folders, profiles, or mod lists.
-- Vortex's own Play button may still use plain Skyrim unless Vortex has made SKSE primary. The always-correct launch path is `proton-vortex-skyrim-se launch-skse`, the **Skyrim SE SKSE (Proton)** icon, or the Vortex dock action **Launch Skyrim SE SKSE**.
+- Vortex's own Play button may still use plain Skyrim unless Vortex has made SKSE primary. The safest launch path is `proton-vortex-skyrim-se preflight-launch`, the **Skyrim SE SKSE (Proton)** icon, or the Vortex dock action **Preflight then Launch Skyrim SE SKSE**. Use `proton-vortex-skyrim-se launch-skse` only when you intentionally want to skip preflight.
 - If Vortex **Deploy Mods** fails, run `proton-vortex-skyrim-se hardlink-test`.
 - If Vortex uses a custom staging folder, run `proton-vortex-skyrim-se hardlink-test "/path/to/staging"`.
 - If character voices are silent but other sounds work, run `proton-vortex-skyrim-se audio-check`; if the voice archives are present, try `proton-vortex-skyrim-se audio-fix`.

@@ -8,7 +8,7 @@ Use the wrapper helper:
 
 ```bash
 proton-vortex-skyrim-se install-skse
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 SKSE is not a normal Skyrim mod. The important files must sit beside `SkyrimSE.exe`:
@@ -20,12 +20,18 @@ SKSE is not a normal Skyrim mod. The important files must sit beside `SkyrimSE.e
 
 The wrapper installs those files directly because that is more reliable under Proton than treating SKSE like an ordinary archive.
 
+`preflight-launch` checks the Proton prefix, Skyrim `Data`, SKSE runtime files, audio archives, `plugins.txt`, and staging filesystem before starting SKSE. If it blocks launch but you intentionally want to test anyway:
+
+```bash
+proton-vortex-skyrim-se preflight-launch --force
+```
+
 ## Verify SKSE Works
 
 Launch through:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 In Skyrim, open the console with `~`, then run:
@@ -43,7 +49,7 @@ proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se install-skse
 ```
 
-Then launch again with `proton-vortex-skyrim-se launch-skse`.
+Then launch again with `proton-vortex-skyrim-se preflight-launch`.
 
 ## If You Want Vortex's Dashboard Button
 
@@ -81,7 +87,7 @@ You can add that batch file as a Vortex Dashboard tool too, but the batch file i
 If that button still acts odd under Proton, use the Linux app icon **Skyrim SE SKSE (Proton)** or:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 ## Vortex Downloaded Mods But Skyrim Did Not Change
@@ -305,7 +311,7 @@ proton-vortex-skyrim-se diagnose
 proton-vortex-skyrim-se deployment
 proton-vortex-skyrim-se fix-staging
 proton-vortex-skyrim-se hardlink-test
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 ## Character Voices Are Gone

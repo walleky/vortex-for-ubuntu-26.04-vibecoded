@@ -22,6 +22,8 @@ To play modded Skyrim:
 Skyrim SE SKSE (Proton)
 ```
 
+That launcher runs a preflight check first, then starts SKSE.
+
 If something breaks:
 
 ```bash
@@ -29,6 +31,7 @@ bash scripts/diagnose.sh
 proton-vortex doctor
 proton-vortex doctor --fix
 proton-vortex linked
+proton-vortex-skyrim-se preflight-launch
 proton-vortex-skyrim-se fix-staging
 ```
 

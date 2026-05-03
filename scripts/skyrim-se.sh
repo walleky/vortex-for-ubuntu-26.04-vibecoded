@@ -1024,9 +1024,143 @@ deployment_status() {
   say "  2. Mods tab: Installed and Enabled"
   say "  3. Plugins tab: plugins Enabled"
   say "  4. Click Deploy Mods"
-  say "  5. Launch: proton-vortex-skyrim-se launch-skse"
+  say "  5. Launch: proton-vortex-skyrim-se preflight-launch"
   say "  6. If Vortex says staging is not writable, run: proton-vortex-skyrim-se fix-staging"
   say "  7. If Deploy Mods fails, run: proton-vortex-skyrim-se hardlink-test \"$prepared_staging\""
+}
+
+preflight_for_launch() {
+  local force="${1:-0}"
+  local game_dir
+  local library
+  local compat_data
+  local data_dir
+  local prepared_staging
+  local plugins_txt=""
+  local runtime=""
+  local expected_dll=""
+  local voices
+  local data_plugins
+  local enabled_plugins="0"
+  local status=0
+
+  game_dir="$(find_skyrim_game_dir)" || die "Skyrim Special Edition was not found in Steam."
+  library="$(skyrim_library_root "$game_dir")" || die "Could not determine Skyrim's Steam library root."
+  compat_data="$(find_skyrim_compat_data "$game_dir")"
+  data_dir="$game_dir/Data"
+  prepared_staging="$(vortex_prepared_staging_dir "$library")"
+
+  say "Skyrim SE preflight launch"
+  say "  game dir: $game_dir"
+  say "  prefix:   $compat_data"
+  say "  staging:  $prepared_staging"
+
+  if [[ ! -d "$compat_data/pfx/drive_c" ]]; then
+    say "  [block] Proton prefix missing. Run Skyrim once from Steam, then rerun bash install.sh."
+    status=1
+  fi
+
+  if [[ ! -d "$data_dir" ]]; then
+    say "  [block] Skyrim Data folder missing. Run Skyrim once from Steam, then rerun bash install.sh."
+    status=1
+  fi
+
+  runtime="$(skyrim_runtime_version "$game_dir/SkyrimSE.exe" 2>/dev/null || true)"
+  if [[ -n "$runtime" ]]; then
+    say "  runtime: $runtime"
+    expected_dll="$(expected_skse_runtime_dll "$runtime" 2>/dev/null || true)"
+  else
+    say "  [warn] Skyrim runtime could not be detected; SKSE installer will use the AE fallback if needed."
+  fi
+
+  if [[ ! -f "$game_dir/skse64_loader.exe" ]]; then
+    say "  [fix] SKSE loader missing. Installing SKSE before launch..."
+    install_skse
+  elif [[ -n "$expected_dll" && ! -f "$game_dir/$expected_dll" ]]; then
+    say "  [fix] Expected SKSE runtime DLL is missing: $expected_dll"
+    say "        Installing the SKSE build that matches this Skyrim runtime..."
+    install_skse
+  else
+    say "  [ok] SKSE loader/runtime files look present"
+  fi
+
+  if [[ -d "$data_dir" ]]; then
+    voices="$(voice_archive_count "$data_dir")"
+    if [[ "$voices" == "0" ]]; then
+      say "  [block] Skyrim voice archive is missing. Verify Skyrim Special Edition files in Steam."
+      status=1
+    else
+      say "  [ok] voice archive present ($voices)"
+    fi
+
+    if [[ -f "$data_dir/Skyrim - Sounds.bsa" ]]; then
+      say "  [ok] sound archive present"
+    else
+      say "  [block] Skyrim - Sounds.bsa is missing. Verify Skyrim Special Edition files in Steam."
+      status=1
+    fi
+
+    data_plugins="$(count_data_plugins "$data_dir")"
+    say "  plugin files in Data: $data_plugins"
+    if [[ "${data_plugins:-0}" -le 5 ]]; then
+      say "  [warn] Data has few plugin files. This can be normal for texture-only mods, but if you expected ESP/ESM/ESL mods, deploy in Vortex first."
+    fi
+  fi
+
+  if plugins_txt="$(find_plugins_txt "$compat_data")"; then
+    enabled_plugins="$(count_enabled_plugins_txt "$plugins_txt")"
+    say "  plugins.txt: $plugins_txt"
+    say "  enabled plugins in plugins.txt: $enabled_plugins"
+    if [[ "$enabled_plugins" == "0" ]]; then
+      say "  [warn] No enabled plugins were found in plugins.txt. Enable plugins and Deploy Mods in Vortex if your mods include plugins."
+    fi
+  else
+    say "  [block] plugins.txt was not found. Launch Skyrim once, then deploy in Vortex."
+    status=1
+  fi
+
+  if [[ -d "$prepared_staging" && -d "$data_dir" ]]; then
+    if same_device "$prepared_staging" "$data_dir"; then
+      say "  [ok] prepared staging and Skyrim Data are on the same filesystem"
+    else
+      say "  [block] prepared staging and Skyrim Data are on different filesystems."
+      say "          Run: proton-vortex-skyrim-se fix-staging"
+      status=1
+    fi
+  else
+    say "  [warn] prepared staging folder is missing. Run: proton-vortex-skyrim-se fix-staging"
+  fi
+
+  if ((status != 0 && force != 1)); then
+    say ""
+    say "Launch blocked by preflight. Fix the blocked items above, or run:"
+    say "  proton-vortex-skyrim-se preflight-launch --force"
+    if have notify-send; then
+      notify-send "Skyrim SE preflight blocked launch" "Run proton-vortex-skyrim-se preflight-launch in a terminal for details." >/dev/null 2>&1 || true
+    fi
+    return "$status"
+  fi
+
+  if ((status != 0 && force == 1)); then
+    say ""
+    say "Continuing because --force was passed."
+  else
+    say "  [ok] preflight passed"
+  fi
+  return 0
+}
+
+preflight_launch_skse() {
+  local force=0
+
+  case "${1:-}" in
+    --force|force)
+      force=1
+      ;;
+  esac
+
+  preflight_for_launch "$force" || return $?
+  launch_skse
 }
 
 hardlink_test() {
@@ -1317,7 +1451,7 @@ fix_skse_launcher() {
   say "  Start in:     $game_win"
   say ""
   say "Guaranteed Linux launch path:"
-  say "  proton-vortex-skyrim-se launch-skse"
+  say "  proton-vortex-skyrim-se preflight-launch"
 }
 
 audio_fix() {
@@ -1436,7 +1570,7 @@ diagnose() {
     fi
     say ""
     say "To verify SKSE in-game:"
-    say "  1. Launch: proton-vortex-skyrim-se launch-skse"
+    say "  1. Launch: proton-vortex-skyrim-se preflight-launch"
     say "  2. Open the Skyrim console with ~"
     say "  3. Run: getskseversion"
     say "  If Vortex says SKSE could not find SkyrimSE.exe: proton-vortex-skyrim-se fix-skse-launcher"
@@ -1456,6 +1590,7 @@ usage() {
   cat <<'EOF_HELP'
 Usage:
   proton-vortex-skyrim-se install-skse
+  proton-vortex-skyrim-se preflight-launch [--force]
   proton-vortex-skyrim-se launch-skse
   proton-vortex-skyrim-se fix-skse-launcher
   proton-vortex-skyrim-se force-vortex-skse
@@ -1481,6 +1616,10 @@ main() {
   case "${1:-diagnose}" in
     install-skse|install)
       install_skse
+      ;;
+    preflight-launch|launch-preflight|safe-launch|play-safe)
+      shift
+      preflight_launch_skse "${1:-}"
       ;;
     launch-skse|launch|play)
       launch_skse

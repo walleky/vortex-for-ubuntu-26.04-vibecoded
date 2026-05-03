@@ -70,6 +70,7 @@ Prefer small, predictable shell/Python helpers over clever abstractions.
 - Finds Steam Skyrim SE app `489830`
 - Installs SKSE64
 - Launches `skse64_loader.exe` through Proton
+- Provides `preflight-launch` to check common SKSE/deployment/audio blockers before launching SKSE; `--force` skips the block after printing warnings
 - Provides `fix-skse-launcher` to create Vortex-safe SKSE command launchers and patch Vortex's Skyrim SE/SKSE tool state when Vortex starts SKSE from the wrong working directory
 - Provides deployment/audio checks and an explicit `audio-fix` command for Proton voice-audio issues
 - Provides an explicit `hardlink-test` command for deployment filesystem checks
@@ -400,7 +401,7 @@ Mods downloaded but not active:
 - Confirm mods are installed and enabled in Vortex
 - Confirm plugins are enabled in Vortex's Plugins tab
 - Click **Deploy Mods**
-- Launch with `proton-vortex-skyrim-se launch-skse`
+- Launch with `proton-vortex-skyrim-se preflight-launch`
 - Run `proton-vortex preflight` to check prefix and staging placement
 - Run `proton-vortex-skyrim-se fix-staging` when Vortex says staging is not writable or the Windows picker is confusing
 - Run `proton-vortex-skyrim-se empty-staging` when Vortex says the destination folder has to be empty

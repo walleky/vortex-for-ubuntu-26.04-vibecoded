@@ -513,7 +513,11 @@ Icon=proton-vortex
 NoDisplay=false
 StartupWMClass=vortex.exe
 StartupNotify=true
-Actions=LaunchSKSE;FixStaging;
+Actions=PreflightLaunchSKSE;LaunchSKSE;FixStaging;
+
+[Desktop Action PreflightLaunchSKSE]
+Name=Preflight then Launch Skyrim SE SKSE
+Exec=$(desktop_quote "$SKYRIM_HELPER") preflight-launch
 
 [Desktop Action LaunchSKSE]
 Name=Launch Skyrim SE SKSE
@@ -545,7 +549,7 @@ Name=Skyrim SE SKSE (Proton)
 Comment=Launch Skyrim Special Edition through SKSE64 and Proton
 Categories=Game;
 Keywords=Skyrim;SKSE;Vortex;Mods;
-Exec=$(desktop_quote "$SKYRIM_HELPER") launch-skse
+Exec=$(desktop_quote "$SKYRIM_HELPER") preflight-launch
 Terminal=false
 Icon=proton-vortex-skyrim-se
 NoDisplay=false
@@ -1079,7 +1083,8 @@ main() {
     say "  Vortex staging: ${VORTEX_SKYRIMSE_STAGING_WIN_PATH:-not prepared}"
     say "  Vortex downloads: ${VORTEX_DOWNLOADS_WIN_PATH:-not prepared}"
     say "  Vortex game path: ${VORTEX_SKYRIMSE_GAME_WIN_PATH:-not prepared}"
-    say "  Launch SKSE: proton-vortex-skyrim-se launch-skse"
+    say "  Preflight + launch SKSE: proton-vortex-skyrim-se preflight-launch"
+    say "  Launch SKSE directly:    proton-vortex-skyrim-se launch-skse"
     say "  Update SKSE: proton-vortex-skyrim-se install-skse"
     say "  Fix staging: proton-vortex-skyrim-se fix-staging"
   fi

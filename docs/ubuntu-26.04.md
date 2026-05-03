@@ -228,14 +228,14 @@ proton-vortex self-update
 For modded play, use:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
 
 or the **Skyrim SE SKSE (Proton)** app icon.
 
 Use Vortex to manage and deploy mods. Use Steam mainly for first-run setup, Proton settings, and unmodded launching.
 
-Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper now uses Vortex's own CLI state setter to repair the Skyrim SE game path, SKSE working directory, and primary tool. Rerunning `bash install.sh` adds Linux dock action **Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-skse-launcher` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.cmd` plus a game-folder helper.
+Vortex's own Dashboard/Play button only launches SKSE if Vortex has detected SKSE and made that tool primary. The wrapper now uses Vortex's own CLI state setter to repair the Skyrim SE game path, SKSE working directory, and primary tool. Rerunning `bash install.sh` adds Linux dock action **Preflight then Launch Skyrim SE SKSE** to the Vortex launcher, and `proton-vortex-skyrim-se fix-skse-launcher` creates `C:\users\steamuser\Desktop\Launch Skyrim SE SKSE.cmd` plus a game-folder helper.
 
 If Vortex says `skse64_loader.exe` could not find `SkyrimSE.exe`, run:
 
@@ -275,7 +275,7 @@ The installer adds:
 
 ```bash
 proton-vortex-skyrim-se install-skse
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 proton-vortex-skyrim-se diagnose
 ```
 
@@ -301,7 +301,7 @@ Wrapper updates leave SKSE64 alone when `skse64_loader.exe` is already present. 
 SKSE_AUTO_UPDATE=1 bash install.sh
 ```
 
-To verify SKSE in-game, launch through `proton-vortex-skyrim-se launch-skse`, open Skyrim's console with `~`, and run:
+To verify SKSE in-game, launch through `proton-vortex-skyrim-se preflight-launch`, open Skyrim's console with `~`, and run:
 
 ```text
 getskseversion
@@ -428,5 +428,5 @@ For the lowest-friction setup, install the game through Steam and force that gam
 Launch the modded game with the app-menu entry **Skyrim SE SKSE (Proton)** or:
 
 ```bash
-proton-vortex-skyrim-se launch-skse
+proton-vortex-skyrim-se preflight-launch
 ```
